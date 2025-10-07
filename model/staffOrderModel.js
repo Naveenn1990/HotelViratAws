@@ -73,7 +73,7 @@ const staffOrderSchema = new mongoose.Schema(
     tableId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Table",
-      required: [true, "Table ID is required"],
+      required: false, // Made optional for guest orders from QR codes
     },
     tableNumber: {
       type: String,
