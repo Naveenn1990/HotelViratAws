@@ -26,15 +26,43 @@ const createBranch = asyncHandler(async (req, res) => {
       throw new Error("Request body is missing")
     }
 
-    const { name, address } = req.body
-    const image = req.file ? await uploadFile2(req.file,"branch") : null
+    const { name, gstNumber, address, contact, openingHours, _id } = req.body
+    
+    // Try to upload image to S3, but don't fail if it doesn't work
+    let image = null;
+    if (req.file) {
+      try {
+        image = await uploadFile2(req.file, "branch");
+        console.log("Image uploaded to S3:", image);
+      } catch (uploadError) {
+        console.warn("Failed to upload image to S3, continuing without image:", uploadError.message);
+        // Continue without image rather than failing the entire request
+      }
+    }
 
     if (!name || !address) {
       res.status(400)
       throw new Error("Name and address are required")
     }
 
-    const branch = new Branch({ name, address, image })
+    // Create branch data object
+    const branchData = { name, gstNumber, address, image };
+    
+    // Parse contact and openingHours if they're JSON strings
+    if (contact) {
+      branchData.contact = typeof contact === 'string' ? JSON.parse(contact) : contact;
+    }
+    if (openingHours) {
+      branchData.openingHours = typeof openingHours === 'string' ? JSON.parse(openingHours) : openingHours;
+    }
+    
+    // If _id is provided (from dual backend sync), use it
+    if (_id) {
+      branchData._id = _id;
+      console.log("Using provided _id for sync:", _id);
+    }
+
+    const branch = new Branch(branchData)
     const createdBranch = await branch.save()
 
     console.log("Branch created successfully:", createdBranch)
@@ -93,10 +121,15 @@ const updateBranch = asyncHandler(async (req, res) => {
     // Remove undefined fields
     Object.keys(updateData).forEach((key) => updateData[key] === undefined && delete updateData[key])
 
-    // If a new image is uploaded, update the image path and delete the old image
+    // If a new image is uploaded, try to upload to S3
     if (req.file) {
-      updateData.image = req.file ? await uploadFile2(req.file, "branch") : null
-      // Find the branch to get the old image path
+      try {
+        updateData.image = await uploadFile2(req.file, "branch");
+        console.log("Image uploaded to S3:", updateData.image);
+      } catch (uploadError) {
+        console.warn("Failed to upload image to S3, continuing without updating image:", uploadError.message);
+        // Continue without updating image rather than failing the entire request
+      }
     }
 
     const updatedBranch = await Branch.findByIdAndUpdate(req.params.id, updateData, {

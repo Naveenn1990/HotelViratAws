@@ -75,7 +75,7 @@ app.use(morgan("dev"));
 // createDirIfNotExists("uploads/offer");
 
 // Serve static files from the "uploads" directory
-// app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static("uploads"));
 
 // MongoDB Connection
 const mongoURI = process.env.MONGO_URI || 'mongodb+srv://hotelvirat:zR4WlMNuRO3ZB60x@cluster0.vyfwyjl.mongodb.net/HotelVirat';
@@ -156,9 +156,13 @@ const PayslipCons = require ("./routes/payslipRoutes")
 const PayrollCons = require ("./routes/payrollRoutesConstruction")
  */
 
+// Restaurant Profile Adapter Routes (for WaveCrm compatibility)
+const restaurantProfileRoutes = require("./routes/restaurantProfileRoutes");
+
 // hotel Routes
 app.use("/api/v1/hotel/user-auth", userRoutes);
 app.use("/api/v1/hotel/branch", branchRoutes);
+app.use("/api/v1/hotel", restaurantProfileRoutes); // Adapter routes for restaurant compatibility
 app.use("/api/v1/hotel/category", categoryRoutes);
 app.use("/api/v1/hotel/menu", menuRoutes);
 app.use("/api/v1/hotel/cart", cartRoutes);
