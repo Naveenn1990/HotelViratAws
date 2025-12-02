@@ -1,5 +1,5 @@
 const Category = require('../model/Category');
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 const { uploadFile2, deleteFile } = require('../middleware/AWS');
 
@@ -7,6 +7,13 @@ const { uploadFile2, deleteFile } = require('../middleware/AWS');
 exports.createCategory = async (req, res) => {
   try {
     const { name, branchId, branchName, branchAddress, _id } = req.body;
+    
+    console.log('Received category data:', { name, branchId, branchName, branchAddress, _id });
+    
+    // Validate required fields
+    if (!branchId || branchId.trim() === '') {
+      return res.status(400).json({ message: 'Branch ID is required' });
+    }
     
     // Build branch object (required by crm_backend format)
     const branchData = {
@@ -24,13 +31,30 @@ exports.createCategory = async (req, res) => {
     // Try to upload image to S3, fallback to local storage if S3 fails
     let image = null;
     if (req.file) {
-      try {
-        image = await uploadFile2(req.file, "category");
-      } catch (s3Error) {
-        console.warn('S3 upload failed, using local file path:', s3Error.message);
-        // Fallback to local file path if S3 is not configured
+      // Read file from disk (multer saved it using diskStorage)
+      const fileBuffer = await fs.readFile(req.file.path);
+      
+      // Try S3 upload first
+      const s3Url = await uploadFile2(fileBuffer, req.file.originalname, req.file.mimetype);
+      
+      if (s3Url) {
+        // S3 upload succeeded - use S3 URL and delete local file
+        image = s3Url;
+        console.log("Image uploaded to S3:", image);
+        // Delete local file since we're using S3
+        try {
+          await fs.unlink(req.file.path);
+        } catch (err) {
+          console.warn('Failed to delete local file after S3 upload:', err.message);
+        }
+      } else {
+        // S3 upload failed, use local file storage
+        console.log("S3 upload failed - using local storage");
         if (req.file.path) {
-          image = req.file.path; // Use local file path
+          // Convert absolute path to relative path
+          const uploadsIndex = req.file.path.indexOf('uploads');
+          image = uploadsIndex !== -1 ? req.file.path.substring(uploadsIndex).replace(/\\/g, '/') : req.file.path;
+          console.log("Using local file path:", image);
         }
       }
     }
@@ -52,6 +76,12 @@ exports.createCategory = async (req, res) => {
     await category.save();
     res.status(201).json({ message: 'Category created successfully', category });
   } catch (error) {
+    console.error('Error creating category:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     res.status(400).json({ message: 'Error creating category', error: error.message });
   }
 };
@@ -102,13 +132,30 @@ exports.updateCategory = async (req, res) => {
 
     // If a new image is uploaded, update the image path and delete the old image
     if (req.file) {
-      try {
-        updateData.image = await uploadFile2(req.file, "category");
-      } catch (s3Error) {
-        console.warn('S3 upload failed, using local file path:', s3Error.message);
-        // Fallback to local file path if S3 is not configured
+      // Read file from disk (multer saved it using diskStorage)
+      const fileBuffer = await fs.readFile(req.file.path);
+      
+      // Try S3 upload first
+      const s3Url = await uploadFile2(fileBuffer, req.file.originalname, req.file.mimetype);
+      
+      if (s3Url) {
+        // S3 upload succeeded - use S3 URL and delete local file
+        updateData.image = s3Url;
+        console.log("Image uploaded to S3:", updateData.image);
+        // Delete local file since we're using S3
+        try {
+          await fs.unlink(req.file.path);
+        } catch (err) {
+          console.warn('Failed to delete local file after S3 upload:', err.message);
+        }
+      } else {
+        // S3 upload failed, use local file storage
+        console.log("S3 upload failed - using local storage");
         if (req.file.path) {
-          updateData.image = req.file.path;
+          // Convert absolute path to relative path
+          const uploadsIndex = req.file.path.indexOf('uploads');
+          updateData.image = uploadsIndex !== -1 ? req.file.path.substring(uploadsIndex).replace(/\\/g, '/') : req.file.path;
+          console.log("Using local file path:", updateData.image);
         }
       }
       
@@ -116,11 +163,7 @@ exports.updateCategory = async (req, res) => {
       if (updateData.image) {
         const category = await Category.findById(req.params.id);
         if (category && category.image && category.image !== updateData.image) {
-          try {
-            await deleteFile(category.image);
-          } catch (deleteError) {
-            console.warn('Failed to delete old image:', deleteError.message);
-          }
+          await deleteFile(category.image);
         }
       }
     }

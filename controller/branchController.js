@@ -4,6 +4,14 @@ const fs = require("fs")
 const path = require("path")
 const { uploadFile2, deleteFile } = require("../middleware/AWS")
 
+// Import RestaurantProfile model for cross-app sync
+let RestaurantProfile;
+try {
+  RestaurantProfile = require("../../../crm/crm_backend/Restaurant/RestautantModel/RestaurantProfileModel");
+} catch (e) {
+  console.warn("RestaurantProfile model not found - cross-app sync disabled:", e.message);
+}
+
 // Ensure upload directory exists
 const ensureUploadDir = () => {
   const uploadDir = path.join(__dirname, "..", "uploads", "branch")
@@ -28,15 +36,25 @@ const createBranch = asyncHandler(async (req, res) => {
 
     const { name, gstNumber, address, contact, openingHours, _id } = req.body
     
-    // Try to upload image to S3, but don't fail if it doesn't work
+    // Try to upload image to S3, fall back to local storage if it fails
     let image = null;
     if (req.file) {
       try {
         image = await uploadFile2(req.file, "branch");
         console.log("Image uploaded to S3:", image);
       } catch (uploadError) {
-        console.warn("Failed to upload image to S3, continuing without image:", uploadError.message);
-        // Continue without image rather than failing the entire request
+        console.warn("Failed to upload image to S3, falling back to local storage:", uploadError.message);
+        // Fall back to local file storage
+        const fs = require("fs");
+        const uploadDir = path.join(__dirname, "..", "uploads", "branch");
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const filename = `image-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(req.file.originalname)}`;
+        const filepath = path.join(uploadDir, filename);
+        fs.writeFileSync(filepath, req.file.buffer);
+        image = `uploads/branch/${filename}`;
+        console.log("Image saved locally:", image);
       }
     }
 
@@ -115,8 +133,16 @@ const updateBranch = asyncHandler(async (req, res) => {
       throw new Error("Request body is missing")
     }
 
-    const { name, address } = req.body
-    const updateData = { name, address }
+    const { name, address, gstNumber, contact, openingHours } = req.body
+    const updateData = { name, address, gstNumber }
+    
+    // Parse contact and openingHours if they're JSON strings
+    if (contact) {
+      updateData.contact = typeof contact === 'string' ? JSON.parse(contact) : contact;
+    }
+    if (openingHours) {
+      updateData.openingHours = typeof openingHours === 'string' ? JSON.parse(openingHours) : openingHours;
+    }
 
     // Remove undefined fields
     Object.keys(updateData).forEach((key) => updateData[key] === undefined && delete updateData[key])
@@ -140,6 +166,54 @@ const updateBranch = asyncHandler(async (req, res) => {
     if (!updatedBranch) {
       res.status(404)
       throw new Error("Branch not found")
+    }
+
+    // Also update RestaurantProfile model for WaveCRM compatibility
+    if (RestaurantProfile) {
+      try {
+        const restaurantUpdateData = {
+          branchName: updatedBranch.name,
+          restaurantName: updatedBranch.name,
+          gstNumber: updatedBranch.gstNumber,
+          image: updatedBranch.image,
+        };
+        
+        // Parse address if it's a string
+        if (typeof updatedBranch.address === 'string') {
+          const parts = updatedBranch.address.split(',').map(p => p.trim());
+          if (parts.length >= 3) {
+            restaurantUpdateData.address = {
+              street: parts.slice(0, -3).join(', '),
+              city: parts[parts.length - 3] || "",
+              state: parts[parts.length - 2] || "",
+              country: parts[parts.length - 1] || ""
+            };
+          } else {
+            restaurantUpdateData.address = {
+              street: updatedBranch.address,
+              city: "",
+              state: "",
+              country: ""
+            };
+          }
+        }
+        
+        if (updatedBranch.contact) {
+          restaurantUpdateData.contact = updatedBranch.contact;
+        }
+        if (updatedBranch.openingHours) {
+          restaurantUpdateData.openingHours = updatedBranch.openingHours;
+        }
+        
+        await RestaurantProfile.findByIdAndUpdate(req.params.id, restaurantUpdateData, {
+          new: true,
+          runValidators: true,
+        });
+        console.log("✅ Also updated RestaurantProfile model");
+      } catch (syncError) {
+        console.warn("⚠️ Failed to sync with RestaurantProfile:", syncError.message);
+        // Continue even if sync fails
+      }
     }
 
     console.log("Branch updated successfully:", updatedBranch)
@@ -168,6 +242,18 @@ const deleteBranch = asyncHandler(async (req, res) => {
     }
 
     await Branch.deleteOne({ _id: req.params.id })
+    
+    // Also delete from RestaurantProfile model for WaveCRM compatibility
+    if (RestaurantProfile) {
+      try {
+        await RestaurantProfile.deleteOne({ _id: req.params.id });
+        console.log("✅ Also deleted from RestaurantProfile model");
+      } catch (syncError) {
+        console.warn("⚠️ Failed to delete from RestaurantProfile:", syncError.message);
+        // Continue even if sync fails
+      }
+    }
+    
     res.json({ message: "Branch removed successfully" })
   } catch (error) {
     console.error("Error in deleteBranch:", error)
