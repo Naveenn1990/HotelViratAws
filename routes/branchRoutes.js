@@ -18,8 +18,15 @@ const {
 //   console.log("Created upload directory:", uploadDir)
 // }
 
-// Configure Multer for file uploads (using memory storage for AWS upload)
-const storage = multer.memoryStorage()
+// Configure Multer for file uploads (using disk storage for reliability)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/branch');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '_' + file.originalname);
+  },
+});
 
 // File filter to only allow images
 const fileFilter = (req, file, cb) => {
@@ -31,7 +38,7 @@ const fileFilter = (req, file, cb) => {
 }
 
 const upload = multer({
-
+  storage: storage,
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit

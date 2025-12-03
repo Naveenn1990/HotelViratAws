@@ -36,25 +36,28 @@ const createBranch = asyncHandler(async (req, res) => {
 
     const { name, gstNumber, address, contact, openingHours, _id } = req.body
     
-    // Try to upload image to S3, fall back to local storage if it fails
+    // Handle image upload - always use local storage for reliability
     let image = null;
     if (req.file) {
+      // Always use local storage path
+      if (req.file.path) {
+        const uploadsIndex = req.file.path.indexOf('uploads');
+        image = uploadsIndex !== -1 ? req.file.path.substring(uploadsIndex).replace(/\\/g, '/') : req.file.path;
+        console.log("Using local file path:", image);
+      }
+      
+      // Try S3 upload as backup (optional)
       try {
-        image = await uploadFile2(req.file, "branch");
-        console.log("Image uploaded to S3:", image);
-      } catch (uploadError) {
-        console.warn("Failed to upload image to S3, falling back to local storage:", uploadError.message);
-        // Fall back to local file storage
-        const fs = require("fs");
-        const uploadDir = path.join(__dirname, "..", "uploads", "branch");
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
+        const fileBuffer = req.file.path ? await fs.promises.readFile(req.file.path) : req.file.buffer;
+        if (fileBuffer) {
+          const s3Url = await uploadFile2(fileBuffer, req.file.originalname, req.file.mimetype);
+          if (s3Url) {
+            console.log("Image also uploaded to S3:", s3Url);
+            // Keep local file - don't delete it
+          }
         }
-        const filename = `image-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(req.file.originalname)}`;
-        const filepath = path.join(uploadDir, filename);
-        fs.writeFileSync(filepath, req.file.buffer);
-        image = `uploads/branch/${filename}`;
-        console.log("Image saved locally:", image);
+      } catch (error) {
+        console.warn("S3 upload failed, using local storage only:", error.message);
       }
     }
 
@@ -147,14 +150,27 @@ const updateBranch = asyncHandler(async (req, res) => {
     // Remove undefined fields
     Object.keys(updateData).forEach((key) => updateData[key] === undefined && delete updateData[key])
 
-    // If a new image is uploaded, try to upload to S3
+    // If a new image is uploaded, update the image path
     if (req.file) {
+      // Always use local storage path
+      if (req.file.path) {
+        const uploadsIndex = req.file.path.indexOf('uploads');
+        updateData.image = uploadsIndex !== -1 ? req.file.path.substring(uploadsIndex).replace(/\\/g, '/') : req.file.path;
+        console.log("Using local file path:", updateData.image);
+      }
+      
+      // Try S3 upload as backup (optional)
       try {
-        updateData.image = await uploadFile2(req.file, "branch");
-        console.log("Image uploaded to S3:", updateData.image);
-      } catch (uploadError) {
-        console.warn("Failed to upload image to S3, continuing without updating image:", uploadError.message);
-        // Continue without updating image rather than failing the entire request
+        const fileBuffer = req.file.path ? await fs.promises.readFile(req.file.path) : req.file.buffer;
+        if (fileBuffer) {
+          const s3Url = await uploadFile2(fileBuffer, req.file.originalname, req.file.mimetype);
+          if (s3Url) {
+            console.log("Image also uploaded to S3:", s3Url);
+            // Keep local file - don't delete it
+          }
+        }
+      } catch (error) {
+        console.warn("S3 upload failed, using local storage only:", error.message);
       }
     }
 
