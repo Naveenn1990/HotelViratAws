@@ -1,0 +1,242 @@
+const RoomBooking = require("../model/RoomBooking");
+const Room = require("../model/Room");
+const asyncHandler = require("express-async-handler");
+
+// Create booking
+const createBooking = asyncHandler(async (req, res) => {
+  try {
+    const { roomId, branchId, userId, userName, userPhone, userEmail, checkInDate, checkOutDate, checkInTime, checkOutTime, totalPrice, nights, baseAmount, cgst, sgst } = req.body;
+
+    if (!roomId || !branchId || !userId || !userName || !checkInDate || !checkOutDate) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Check if room is available for the dates
+    const existingBooking = await RoomBooking.findOne({
+      roomId,
+      status: { $nin: ['cancelled', 'checked-out'] },
+      $or: [
+        { checkInDate: { $lte: new Date(checkOutDate) }, checkOutDate: { $gte: new Date(checkInDate) } }
+      ]
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({ message: "Room is already booked for these dates" });
+    }
+
+    const booking = new RoomBooking({
+      roomId,
+      branchId,
+      userId,
+      userName,
+      userPhone,
+      userEmail,
+      checkInDate: new Date(checkInDate),
+      checkOutDate: new Date(checkOutDate),
+      checkInTime: checkInTime || '12:00',
+      checkOutTime: checkOutTime || '11:00',
+      nights: nights || 1,
+      baseAmount: baseAmount || totalPrice,
+      cgst: cgst || 0,
+      sgst: sgst || 0,
+      totalPrice,
+      status: 'confirmed',
+    });
+
+    const createdBooking = await booking.save();
+
+    // Update room availability
+    await Room.findByIdAndUpdate(roomId, { isAvailable: false });
+
+    const populatedBooking = await RoomBooking.findById(createdBooking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.status(201).json(populatedBooking);
+  } catch (error) {
+    console.error("Error creating booking:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all bookings
+const getBookings = asyncHandler(async (req, res) => {
+  try {
+    const { roomId, userId, branchId } = req.query;
+    const filter = {};
+    if (roomId) filter.roomId = roomId;
+    if (userId) filter.userId = userId;
+    if (branchId) filter.branchId = branchId;
+
+    const bookings = await RoomBooking.find(filter)
+      .populate('roomId')
+      .populate('branchId', 'name')
+      .sort({ createdAt: -1 });
+
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get booking by ID
+const getBookingById = asyncHandler(async (req, res) => {
+  try {
+    const booking = await RoomBooking.findById(req.params.id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    if (booking) {
+      res.json(booking);
+    } else {
+      res.status(404).json({ message: "Booking not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get active booking for a room
+const getRoomActiveBooking = asyncHandler(async (req, res) => {
+  try {
+    const booking = await RoomBooking.findOne({
+      roomId: req.params.roomId,
+      status: { $nin: ['cancelled', 'checked-out'] }
+    }).populate('roomId').populate('branchId', 'name');
+
+    res.json(booking || null);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update booking status
+const updateBookingStatus = asyncHandler(async (req, res) => {
+  try {
+    const { status } = req.body;
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    booking.status = status;
+    await booking.save();
+
+    // If checked-out or cancelled, make room available again
+    if (status === 'checked-out' || status === 'cancelled') {
+      await Room.findByIdAndUpdate(booking.roomId, { isAvailable: true });
+    }
+
+    res.json(booking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Cancel booking
+const cancelBooking = asyncHandler(async (req, res) => {
+  try {
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    // Make room available again
+    await Room.findByIdAndUpdate(booking.roomId, { isAvailable: true });
+
+    res.json({ message: "Booking cancelled successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Request cancellation (user requests, admin approves)
+const requestCancellation = asyncHandler(async (req, res) => {
+  try {
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (booking.status === 'cancelled' || booking.status === 'cancel-requested') {
+      return res.status(400).json({ message: "Booking is already cancelled or cancellation is pending" });
+    }
+
+    // Calculate 20% cancellation charges
+    const cancellationCharges = booking.totalPrice * 0.2;
+    const refundAmount = booking.totalPrice * 0.8;
+
+    booking.status = 'cancel-requested';
+    booking.cancellationCharges = cancellationCharges;
+    booking.refundAmount = refundAmount;
+    await booking.save();
+
+    res.json({ 
+      message: "Cancellation request submitted successfully",
+      cancellationCharges,
+      refundAmount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Approve cancellation (admin only)
+const approveCancellation = asyncHandler(async (req, res) => {
+  try {
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (booking.status !== 'cancel-requested') {
+      return res.status(400).json({ message: "No cancellation request pending for this booking" });
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    // Make room available again
+    await Room.findByIdAndUpdate(booking.roomId, { isAvailable: true });
+
+    res.json({ 
+      message: "Cancellation approved successfully",
+      refundAmount: booking.refundAmount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all cancellation requests (for admin)
+const getCancellationRequests = asyncHandler(async (req, res) => {
+  try {
+    const bookings = await RoomBooking.find({ status: 'cancel-requested' })
+      .populate('roomId')
+      .populate('branchId', 'name')
+      .sort({ updatedAt: -1 });
+
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+module.exports = {
+  createBooking,
+  getBookings,
+  getBookingById,
+  getRoomActiveBooking,
+  updateBookingStatus,
+  cancelBooking,
+  requestCancellation,
+  approveCancellation,
+  getCancellationRequests,
+};

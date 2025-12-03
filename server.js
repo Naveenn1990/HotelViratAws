@@ -126,6 +126,8 @@ const inventoryRoutes = require("./routes/inventoryRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const subscriptionOrderRoutes = require("./routes/subscriptionOrderRoutes");
 const mealOfTheDayRoutes = require("./routes/mealOfTheDayRoutes");
+const roomRoutes = require("./routes/roomRoutes");
+const roomBookingRoutes = require("./routes/roomBookingRoutes");
 
 //construction
 /* const roleRoutes = require('./routes/roleRoutes');
@@ -202,6 +204,8 @@ app.use("/api/v1/hotel/inventory", inventoryRoutes);
 app.use("/api/v1/hotel/subscription", subscriptionRoutes);
 app.use("/api/v1/hotel/subscription-order", subscriptionOrderRoutes);
 app.use("/api/v1/hotel/meal-of-the-day", mealOfTheDayRoutes);
+app.use("/api/v1/hotel/room", roomRoutes);
+app.use("/api/v1/hotel/room-booking", roomBookingRoutes);
 
 app.use(express.static(path.join(__dirname, 'build')));
 
