@@ -61,21 +61,27 @@ app.use(morgan("dev"));
 // );
 
 // Create upload directories if they don't exist
-// const createDirIfNotExists = (dirPath) => {
-//   if (!fs.existsSync(dirPath)) {
-//     fs.mkdirSync(dirPath, { recursive: true });
-//     console.log(`Directory created: ${dirPath}`);
-//   }
-// };
+const createDirIfNotExists = (dirPath) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    console.log(`Directory created: ${dirPath}`);
+  }
+};
 
-// createDirIfNotExists("uploads");
-// createDirIfNotExists("uploads/profile");
-// createDirIfNotExists("uploads/category");
-// createDirIfNotExists("uploads/menu");
-// createDirIfNotExists("uploads/offer");
+createDirIfNotExists("uploads");
+createDirIfNotExists("uploads/profile");
+createDirIfNotExists("uploads/category");
+createDirIfNotExists("uploads/menu");
+createDirIfNotExists("uploads/offer");
 
 // Serve static files from the "uploads" directory
-app.use("/uploads", express.static("uploads"));
+// Add logging middleware for uploads
+app.use("/uploads", (req, res, next) => {
+  console.log(`📁 Static file request: ${req.url}`);
+  console.log(`📂 Looking in: ${path.join(__dirname, "uploads", req.url)}`);
+  next();
+});
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // MongoDB Connection
 const mongoURI = process.env.MONGO_URI || 'mongodb+srv://hotelvirat:zR4WlMNuRO3ZB60x@cluster0.vyfwyjl.mongodb.net/HotelVirat';
@@ -205,8 +211,12 @@ app.use("/api/v1/hotel/meal-of-the-day", mealOfTheDayRoutes);
 
 app.use(express.static(path.join(__dirname, 'build')));
 
-// Redirect all requests to the index.html file
-app.get('*', (req, res) => {
+// Redirect all requests to the index.html file (except API and uploads)
+app.get('*', (req, res, next) => {
+  // Skip catch-all for API routes and uploads
+  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+    return next();
+  }
   return res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 

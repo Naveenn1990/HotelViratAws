@@ -1,19 +1,36 @@
 const mongoose = require('mongoose');
 
 const menuSchema = new mongoose.Schema({
+  // Support both name and itemName for backward compatibility
   name: {
     type: String,
-    required: [true, 'Menu item name is required'],
+    trim: true
+  },
+  itemName: {
+    type: String,
     trim: true
   },
   description: {
     type: String,
     trim: true
   },
+  // Old structure: single price (optional for backward compatibility)
   price: {
     type: Number,
-    required: [true, 'Price is required'],
     min: [0, 'Price cannot be negative']
+  },
+  // New structure: quantities and prices
+  quantities: {
+    type: [String],
+    default: []
+  },
+  prices: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  menuTypes: {
+    type: [String],
+    default: []
   },
   image: {
     type: String,
