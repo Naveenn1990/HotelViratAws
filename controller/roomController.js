@@ -4,47 +4,31 @@ const { uploadFile2, deleteFile } = require("../middleware/AWS");
 const path = require("path");
 const fs = require("fs");
 
-// Upload images helper
+// Upload images helper - handles disk storage (files already saved by multer)
 const uploadImages = async (files) => {
   const imageUrls = [];
+  
   for (const file of files) {
     try {
-      console.log("Processing file:", file.originalname, "Size:", file.size, "Type:", file.mimetype);
+      console.log("Processing file:", file.originalname, "Size:", file.size, "Path:", file.path);
       
-      // Try S3 upload first
-      const url = await uploadFile2(file.buffer, file.originalname, file.mimetype);
-      if (url) {
-        console.log("S3 upload successful:", url);
-        imageUrls.push(url);
-      } else {
-        // Fallback to local storage
-        console.log("S3 failed, using local storage...");
-        const uploadDir = path.join(__dirname, "..", "uploads", "rooms");
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
+      // File is already saved to disk by multer, use the local path
+      const localUrl = file.path.replace(/\\/g, '/'); // Normalize path for URLs
+      console.log("Using local file path:", localUrl);
+      imageUrls.push(localUrl);
+      
+      // Optionally also upload to S3 for backup
+      try {
+        const fileBuffer = fs.readFileSync(file.path);
+        const s3Url = await uploadFile2(fileBuffer, file.originalname, file.mimetype);
+        if (s3Url) {
+          console.log("Image also uploaded to S3:", s3Url);
         }
-        const filename = `room-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
-        const filepath = path.join(uploadDir, filename);
-        fs.writeFileSync(filepath, file.buffer);
-        const localUrl = `uploads/rooms/${filename}`;
-        console.log("Local storage successful:", localUrl);
-        imageUrls.push(localUrl);
+      } catch (s3Error) {
+        console.log("S3 backup upload failed (using local):", s3Error.message);
       }
     } catch (error) {
-      console.error("Error uploading image:", error);
-      // Still try local storage on error
-      try {
-        const uploadDir = path.join(__dirname, "..", "uploads", "rooms");
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        const filename = `room-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
-        const filepath = path.join(uploadDir, filename);
-        fs.writeFileSync(filepath, file.buffer);
-        imageUrls.push(`uploads/rooms/${filename}`);
-      } catch (localError) {
-        console.error("Local storage also failed:", localError);
-      }
+      console.error("Error processing image:", error);
     }
   }
   
