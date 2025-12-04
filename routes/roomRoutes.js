@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 const {
   createRoom,
   getRooms,
@@ -9,8 +11,32 @@ const {
   deleteRoom,
 } = require("../controller/roomController");
 
-// Configure Multer for multiple file uploads (memory storage for AWS)
-const storage = multer.memoryStorage();
+// Ensure uploads/rooms directory exists
+const uploadDir = path.join(__dirname, "..", "uploads", "rooms");
+console.log("Room uploads directory:", uploadDir);
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("Created uploads/rooms directory");
+}
+// Test write permissions
+try {
+  const testFile = path.join(uploadDir, ".write-test");
+  fs.writeFileSync(testFile, "test");
+  fs.unlinkSync(testFile);
+  console.log("✅ uploads/rooms directory is writable");
+} catch (e) {
+  console.error("❌ uploads/rooms directory is NOT writable:", e.message);
+}
+
+// Configure Multer for multiple file uploads (disk storage like menu)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/rooms");
+  },
+  filename: (req, file, cb) => {
+    cb(null, `room-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`);
+  },
+});
 
 const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith("image/")) {
@@ -23,14 +49,24 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max file size
+    files: 5, // Max 5 files
+  },
 });
 
 // Error handling middleware for multer
 const handleMulterError = (err, req, res, next) => {
+  console.error("=== MULTER ERROR ===");
+  console.error("Error:", err);
+  console.error("Error message:", err?.message);
+  console.error("Upload dir exists:", fs.existsSync(uploadDir));
+  console.error("Upload dir path:", uploadDir);
+  
   if (err instanceof multer.MulterError) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: err.message, type: "MulterError", code: err.code });
   } else if (err) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: err.message, type: "UploadError" });
   }
   next();
 };

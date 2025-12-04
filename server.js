@@ -15,11 +15,11 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
-// Middleware to parse JSON
-app.use(express.json());
+// Middleware to parse JSON with increased limit for file uploads
+app.use(express.json({ limit: '50mb' }));
 
-// Middleware to parse URL-encoded data
-app.use(express.urlencoded({ extended: true }));
+// Middleware to parse URL-encoded data with increased limit
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Enable CORS for all routes - Allow all origins for React Native development
 app.use(cors({ 
