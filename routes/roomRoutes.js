@@ -13,8 +13,19 @@ const {
 
 // Ensure uploads/rooms directory exists
 const uploadDir = path.join(__dirname, "..", "uploads", "rooms");
+console.log("Room uploads directory:", uploadDir);
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("Created uploads/rooms directory");
+}
+// Test write permissions
+try {
+  const testFile = path.join(uploadDir, ".write-test");
+  fs.writeFileSync(testFile, "test");
+  fs.unlinkSync(testFile);
+  console.log("✅ uploads/rooms directory is writable");
+} catch (e) {
+  console.error("❌ uploads/rooms directory is NOT writable:", e.message);
 }
 
 // Configure Multer for multiple file uploads (disk storage like menu)
@@ -46,10 +57,16 @@ const upload = multer({
 
 // Error handling middleware for multer
 const handleMulterError = (err, req, res, next) => {
+  console.error("=== MULTER ERROR ===");
+  console.error("Error:", err);
+  console.error("Error message:", err?.message);
+  console.error("Upload dir exists:", fs.existsSync(uploadDir));
+  console.error("Upload dir path:", uploadDir);
+  
   if (err instanceof multer.MulterError) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: err.message, type: "MulterError", code: err.code });
   } else if (err) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: err.message, type: "UploadError" });
   }
   next();
 };
