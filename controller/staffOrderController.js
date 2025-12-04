@@ -62,12 +62,7 @@ exports.createStaffOrderAfterPayment = async (req, res) => {
       })
     }
 
-    if (!orderId) {
-      return res.status(400).json({
-        success: false,
-        message: "Order ID is required",
-      })
-    }
+    // orderId is now auto-generated if not provided
 
     if (!paymentMethod) {
       return res.status(400).json({
@@ -185,12 +180,7 @@ exports.createGuestOrder = async (req, res) => {
     console.log("Received guest order creation request:", req.body)
 
     // Validate required fields for guest orders
-    if (!orderId) {
-      return res.status(400).json({
-        success: false,
-        message: "Order ID is required",
-      })
-    }
+    // orderId is now auto-generated if not provided
 
     if (!customerName || !customerName.trim()) {
       return res.status(400).json({

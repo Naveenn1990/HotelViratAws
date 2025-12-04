@@ -13,7 +13,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer();
+const upload = multer({ storage });
 
 // Routes
 router.route('/')

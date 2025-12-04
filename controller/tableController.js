@@ -11,7 +11,8 @@ const createTable = asyncHandler(async (req, res) => {
     throw new Error('Request body is missing');
   }
 
-  const { branchId, number, status } = req.body;
+  console.log('Create table request body:', req.body);
+  const { branchId, categoryId, number, status } = req.body;
   const image = req.file ? await uploadFile2(req.file,'table') : null;
 
   if (!branchId || !number) {
@@ -25,21 +26,38 @@ const createTable = asyncHandler(async (req, res) => {
     throw new Error('Branch not found');
   }
 
-  const table = new Table({ branchId, number, status, image });
+  const tableData = { branchId, number, status, image };
+  if (categoryId) {
+    tableData.categoryId = categoryId;
+  }
+
+  const table = new Table(tableData);
   const createdTable = await table.save();
 
-  res.status(201).json(createdTable);
+  // Populate category before returning
+  const populatedTable = await Table.findById(createdTable._id)
+    .populate('branchId', 'name')
+    .populate('categoryId', 'name');
+
+  res.status(201).json(populatedTable);
 });
 
 const getTables = asyncHandler(async (req, res) => {
-  const { branchId } = req.query;
-  const query = branchId ? { branchId } : {};
-  const tables = await Table.find(query).populate('branchId', 'name');
+  const { branchId, categoryId } = req.query;
+  const query = {};
+  if (branchId) query.branchId = branchId;
+  if (categoryId) query.categoryId = categoryId;
+  
+  const tables = await Table.find(query)
+    .populate('branchId', 'name')
+    .populate('categoryId', 'name');
   res.json(tables);
 });
 
 const getTableById = asyncHandler(async (req, res) => {
-  const table = await Table.findById(req.params.id).populate('branchId', 'name');
+  const table = await Table.findById(req.params.id)
+    .populate('branchId', 'name')
+    .populate('categoryId', 'name');
 
   if (table) {
     res.json(table);
@@ -55,8 +73,8 @@ const updateTable = asyncHandler(async (req, res) => {
     throw new Error('Request body is missing');
   }
 
-  const { branchId, number, status } = req.body;
-  const updateData = { branchId, number, status };
+  const { branchId, categoryId, number, status } = req.body;
+  const updateData = { branchId, categoryId, number, status };
 
   Object.keys(updateData).forEach(key => 
     updateData[key] === undefined && delete updateData[key]
@@ -82,7 +100,9 @@ const updateTable = asyncHandler(async (req, res) => {
   const updatedTable = await Table.findByIdAndUpdate(req.params.id, updateData, {
     new: true,
     runValidators: true,
-  }).populate('branchId', 'name');
+  })
+    .populate('branchId', 'name')
+    .populate('categoryId', 'name');
 
   if (!updatedTable) {
     res.status(404);

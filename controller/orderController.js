@@ -3,6 +3,7 @@ const Order = require("../model/orderModel")
 const Cart = require("../model/cartModel")
 const User = require("../model/userModel")
 const Branch = require("../model/Branch")
+const Menu = require("../model/menuModel")
 const { validateStock, updateStockAfterOrder } = require("../middleware/stockMiddleware")
 
 // Create a new order
@@ -53,6 +54,21 @@ exports.createOrder = async (req, res, next) => {
       return res.status(400).json({ message: "Items must be a non-empty array" })
     }
 
+    // Enrich items with categoryId from Menu model
+    const enrichedItems = await Promise.all(items.map(async (item) => {
+      if (!item.categoryId && item.menuItemId) {
+        try {
+          const menuItem = await Menu.findById(item.menuItemId).select('categoryId');
+          if (menuItem && menuItem.categoryId) {
+            return { ...item, categoryId: menuItem.categoryId };
+          }
+        } catch (err) {
+          console.log('Could not fetch categoryId for item:', item.menuItemId);
+        }
+      }
+      return item;
+    }));
+
     // Create initial delivery steps
     const deliverySteps = [
       {
@@ -62,11 +78,11 @@ exports.createOrder = async (req, res, next) => {
       },
     ]
 
-    // Create the order
+    // Create the order with enriched items (including categoryId)
     const order = new Order({
       userId,
       branchId,
-      items,
+      items: enrichedItems,
       subtotal,
       discount: discount || 0,
       couponCode,

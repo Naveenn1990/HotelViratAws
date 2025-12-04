@@ -2,6 +2,70 @@ const RoomBooking = require("../model/RoomBooking");
 const Room = require("../model/Room");
 const asyncHandler = require("express-async-handler");
 
+// Create walk-in booking (for receptionist - no userId required)
+const createWalkInBooking = asyncHandler(async (req, res) => {
+  try {
+    const { roomId, branchId, userName, userPhone, userEmail, checkInDate, checkOutDate, checkInTime, checkOutTime, totalPrice, nights, baseAmount, cgst, sgst, status, paymentStatus } = req.body;
+
+    if (!roomId || !userName || !userPhone || !checkInDate || !checkOutDate) {
+      return res.status(400).json({ message: "Missing required fields: roomId, userName, userPhone, checkInDate, checkOutDate" });
+    }
+
+    // Check if room is available for the dates
+    const existingBooking = await RoomBooking.findOne({
+      roomId,
+      status: { $nin: ['cancelled', 'checked-out'] },
+      $or: [
+        { checkInDate: { $lte: new Date(checkOutDate) }, checkOutDate: { $gte: new Date(checkInDate) } }
+      ]
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({ message: "Room is already booked for these dates" });
+    }
+
+    // Get room to get branchId if not provided
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const booking = new RoomBooking({
+      roomId,
+      branchId: branchId || room.branchId,
+      userId: null, // Walk-in guest, no user account
+      userName,
+      userPhone,
+      userEmail: userEmail || '',
+      checkInDate: new Date(checkInDate),
+      checkOutDate: new Date(checkOutDate),
+      checkInTime: checkInTime || '12:00',
+      checkOutTime: checkOutTime || '11:00',
+      nights: nights || 1,
+      baseAmount: baseAmount || totalPrice,
+      cgst: cgst || 0,
+      sgst: sgst || 0,
+      totalPrice,
+      status: status || 'checked-in',
+      paymentStatus: paymentStatus || 'pending',
+    });
+
+    const createdBooking = await booking.save();
+
+    // Update room availability
+    await Room.findByIdAndUpdate(roomId, { isAvailable: false });
+
+    const populatedBooking = await RoomBooking.findById(createdBooking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.status(201).json(populatedBooking);
+  } catch (error) {
+    console.error("Error creating walk-in booking:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Create booking
 const createBooking = asyncHandler(async (req, res) => {
   try {
@@ -231,6 +295,7 @@ const getCancellationRequests = asyncHandler(async (req, res) => {
 
 module.exports = {
   createBooking,
+  createWalkInBooking,
   getBookings,
   getBookingById,
   getRoomActiveBooking,

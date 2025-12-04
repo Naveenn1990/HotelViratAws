@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   createBooking,
+  createWalkInBooking,
   getBookings,
   getBookingById,
   getRoomActiveBooking,
@@ -13,6 +14,7 @@ const {
 } = require("../controller/roomBookingController");
 
 router.route("/").post(createBooking).get(getBookings);
+router.route("/walk-in").post(createWalkInBooking);
 router.route("/cancellation-requests").get(getCancellationRequests);
 router.route("/room/:roomId/active").get(getRoomActiveBooking);
 router.route("/:id").get(getBookingById);

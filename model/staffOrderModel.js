@@ -26,6 +26,11 @@ const sOrderItemSchema = new mongoose.Schema({
     type: String, // Added to store item description
     required: false,
   },
+  categoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Categoryy",
+    required: false,
+  },
 })
 
 const staffOrderSchema = new mongoose.Schema(
@@ -158,6 +163,76 @@ staffOrderSchema.pre("validate", function (next) {
     if (!this.userId) {
       return next(new Error("Staff orders require userId"))
     }
+  }
+  next()
+})
+
+// Category code mapping for order IDs
+const getCategoryCode = async (items) => {
+  if (!items || items.length === 0) return "RES"
+
+  try {
+    // Get the first item's category to determine the code
+    const firstItem = items[0]
+    const categoryId = firstItem.categoryId?._id || firstItem.categoryId
+
+    if (categoryId) {
+      const Category = mongoose.model("Categoryy")
+      const category = await Category.findById(categoryId)
+
+      if (category && category.name) {
+        const categoryName = category.name.toLowerCase()
+        // Map category names to codes
+        if (categoryName.includes("temple")) {
+          return "TM" // Temple Meals
+        } else if (categoryName.includes("self")) {
+          return "SS" // Self Service
+        } else if (categoryName.includes("restarunt") || categoryName.includes("restaurant")) {
+          return "RES" // Restaurant
+        } else if (categoryName.includes("bar") || categoryName.includes("drink")) {
+          return "BAR"
+        }
+        // Use first 2-3 letters of category name as code
+        return category.name.substring(0, 3).toUpperCase()
+      }
+    }
+  } catch (error) {
+    console.log("Error getting category code:", error.message)
+  }
+
+  return "RES" // Default code
+}
+
+// Generate unique order ID before saving (format: DDMMYYYY-CODE-sequence)
+staffOrderSchema.pre("save", async function (next) {
+  if (
+    !this.orderId ||
+    this.orderId.startsWith("GUEST-") ||
+    this.orderId.startsWith("STAFF-")
+  ) {
+    const now = new Date()
+    const day = String(now.getDate()).padStart(2, "0")
+    const month = String(now.getMonth() + 1).padStart(2, "0")
+    const year = now.getFullYear()
+    const datePrefix = `${day}${month}${year}`
+
+    // Get category code from items
+    const categoryCode = await getCategoryCode(this.items)
+
+    // Find the last order with the same date prefix and category code to get the sequence
+    const StaffOrder = mongoose.model("StaffOrder")
+    const lastOrder = await StaffOrder.findOne({
+      orderId: { $regex: `^${datePrefix}-${categoryCode}-` },
+    }).sort({ createdAt: -1 })
+
+    let sequence = 1
+    if (lastOrder && lastOrder.orderId) {
+      const parts = lastOrder.orderId.split("-")
+      const lastSequence = parseInt(parts[2]) || 0
+      sequence = lastSequence + 1
+    }
+
+    this.orderId = `${datePrefix}-${categoryCode}-${sequence}`
   }
   next()
 })

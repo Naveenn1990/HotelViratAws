@@ -67,12 +67,14 @@ const createDirIfNotExists = (dirPath) => {
     console.log(`Directory created: ${dirPath}`);
   }
 };
-
+ 
 createDirIfNotExists("uploads");
 createDirIfNotExists("uploads/profile");
 createDirIfNotExists("uploads/category");
 createDirIfNotExists("uploads/menu");
 createDirIfNotExists("uploads/offer");
+createDirIfNotExists("uploads/rooms");
+createDirIfNotExists("uploads/table");
 
 // Serve static files from the "uploads" directory
 // Add logging middleware for uploads
@@ -134,6 +136,8 @@ const subscriptionOrderRoutes = require("./routes/subscriptionOrderRoutes");
 const mealOfTheDayRoutes = require("./routes/mealOfTheDayRoutes");
 const roomRoutes = require("./routes/roomRoutes");
 const roomBookingRoutes = require("./routes/roomBookingRoutes");
+const categoryAccessRoutes = require("./routes/categoryAccessRoutes");
+const receptionistAccessRoutes = require("./routes/receptionistAccessRoutes");
 
 //construction
 /* const roleRoutes = require('./routes/roleRoutes');
@@ -212,6 +216,8 @@ app.use("/api/v1/hotel/subscription-order", subscriptionOrderRoutes);
 app.use("/api/v1/hotel/meal-of-the-day", mealOfTheDayRoutes);
 app.use("/api/v1/hotel/room", roomRoutes);
 app.use("/api/v1/hotel/room-booking", roomBookingRoutes);
+app.use("/api/v1/hotel/category-access", categoryAccessRoutes);
+app.use("/api/v1/hotel/receptionist-access", receptionistAccessRoutes);
 
 app.use(express.static(path.join(__dirname, 'build')));
 

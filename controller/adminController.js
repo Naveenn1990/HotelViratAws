@@ -21,7 +21,7 @@ const registerAdmin = asyncHandler(async (req, res) => {
   
   const token = jwt.sign(
     { id: admin._id, email: admin.email },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'hotel-virat-secret-key',
     { expiresIn: '1d' }
   );
 
@@ -58,7 +58,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
 
   const token = jwt.sign(
     { id: admin._id, email: admin.email },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'hotel-virat-secret-key',
     { expiresIn: '1d' }
   );
 

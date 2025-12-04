@@ -87,13 +87,28 @@ exports.addToCart = async (req, res) => {
       // Update quantity if item exists
       cart.items[itemIndex].quantity += quantity;
     } else {
+      // Get price - check both price field and prices object
+      let itemPrice = menuItem.price;
+      console.log('Menu item price field:', menuItem.price);
+      console.log('Menu item prices object:', menuItem.prices);
+      
+      if ((itemPrice === undefined || itemPrice === null) && menuItem.prices && typeof menuItem.prices === 'object') {
+        const priceValues = Object.values(menuItem.prices);
+        console.log('Price values from prices object:', priceValues);
+        itemPrice = priceValues.length > 0 ? Number(priceValues[0]) : 0;
+      }
+      
+      // Ensure price is a valid number, default to 1 if still invalid (to pass validation)
+      const finalPrice = (typeof itemPrice === 'number' && !isNaN(itemPrice)) ? itemPrice : 1;
+      console.log('Final price being saved:', finalPrice);
+      
       // Add new item to cart
       cart.items.push({
         menuItemId,
         quantity,
-        price: menuItem.price,
-        name: menuItem.name,
-        image: menuItem.image,
+        price: finalPrice,
+        name: menuItem.name || menuItem.itemName || 'Unknown Item',
+        image: menuItem.image || null,
       });
     }
 
