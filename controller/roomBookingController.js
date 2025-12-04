@@ -5,7 +5,7 @@ const asyncHandler = require("express-async-handler");
 // Create walk-in booking (for receptionist - no userId required)
 const createWalkInBooking = asyncHandler(async (req, res) => {
   try {
-    const { roomId, branchId, userName, userPhone, userEmail, checkInDate, checkOutDate, checkInTime, checkOutTime, totalPrice, nights, baseAmount, cgst, sgst, status, paymentStatus } = req.body;
+    const { roomId, branchId, userName, userPhone, userEmail, guestGstNumber, checkInDate, checkOutDate, checkInTime, checkOutTime, totalPrice, nights, baseAmount, gstType, cgst, sgst, igst, amountPaid, status, paymentStatus } = req.body;
 
     if (!roomId || !userName || !userPhone || !checkInDate || !checkOutDate) {
       return res.status(400).json({ message: "Missing required fields: roomId, userName, userPhone, checkInDate, checkOutDate" });
@@ -37,15 +37,19 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
       userName,
       userPhone,
       userEmail: userEmail || '',
+      guestGstNumber: guestGstNumber || '',
       checkInDate: new Date(checkInDate),
       checkOutDate: new Date(checkOutDate),
       checkInTime: checkInTime || '12:00',
       checkOutTime: checkOutTime || '11:00',
       nights: nights || 1,
       baseAmount: baseAmount || totalPrice,
+      gstType: gstType || 'none',
       cgst: cgst || 0,
       sgst: sgst || 0,
+      igst: igst || 0,
       totalPrice,
+      amountPaid: amountPaid || 0,
       status: status || 'checked-in',
       paymentStatus: paymentStatus || 'pending',
     });
@@ -198,6 +202,36 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
   }
 });
 
+// Update payment amount
+const updatePayment = asyncHandler(async (req, res) => {
+  try {
+    const { amountPaid } = req.body;
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    booking.amountPaid = amountPaid;
+    // Update payment status based on amount paid
+    if (amountPaid >= booking.totalPrice) {
+      booking.paymentStatus = 'paid';
+    } else if (amountPaid > 0) {
+      booking.paymentStatus = 'pending';
+    }
+    
+    await booking.save();
+
+    const populatedBooking = await RoomBooking.findById(booking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.json(populatedBooking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Cancel booking
 const cancelBooking = asyncHandler(async (req, res) => {
   try {
@@ -300,6 +334,7 @@ module.exports = {
   getBookingById,
   getRoomActiveBooking,
   updateBookingStatus,
+  updatePayment,
   cancelBooking,
   requestCancellation,
   approveCancellation,

@@ -7,6 +7,7 @@ const {
   getBookingById,
   getRoomActiveBooking,
   updateBookingStatus,
+  updatePayment,
   cancelBooking,
   requestCancellation,
   approveCancellation,
@@ -19,6 +20,7 @@ router.route("/cancellation-requests").get(getCancellationRequests);
 router.route("/room/:roomId/active").get(getRoomActiveBooking);
 router.route("/:id").get(getBookingById);
 router.route("/:id/status").put(updateBookingStatus);
+router.route("/:id/payment").put(updatePayment);
 router.route("/:id/cancel").put(cancelBooking);
 router.route("/:id/request-cancel").put(requestCancellation);
 router.route("/:id/approve-cancel").put(approveCancellation);
