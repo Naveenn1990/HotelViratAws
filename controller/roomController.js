@@ -7,7 +7,6 @@ const fs = require("fs");
 // Upload images helper
 const uploadImages = async (files) => {
   const imageUrls = [];
-  
   for (const file of files) {
     try {
       console.log("Processing file:", file.originalname, "Size:", file.size, "Type:", file.mimetype);
@@ -57,7 +56,7 @@ const createRoom = asyncHandler(async (req, res) => {
   try {
     console.log("=== CREATE ROOM ===");
     console.log("Request body:", req.body);
-    console.log("Request files:", req.files);
+    console.log("Request files:", req.files ? req.files.length : 0);
     
     const { branchId, floor, roomType, price, description, amenities, capacity, roomNumber } = req.body;
 
@@ -68,30 +67,48 @@ const createRoom = asyncHandler(async (req, res) => {
     let images = [];
     if (req.files && req.files.length > 0) {
       console.log("Uploading", req.files.length, "images...");
-      images = await uploadImages(req.files.slice(0, 5)); // Max 5 images
-      console.log("Uploaded images:", images);
+      try {
+        images = await uploadImages(req.files.slice(0, 5)); // Max 5 images
+        console.log("Uploaded images:", images);
+      } catch (uploadError) {
+        console.error("Image upload failed, continuing without images:", uploadError);
+        // Continue without images rather than failing the whole request
+      }
     }
 
-    const parsedAmenities = typeof amenities === 'string' ? JSON.parse(amenities) : amenities;
-    const parsedCapacity = typeof capacity === 'string' ? JSON.parse(capacity) : capacity;
+    let parsedAmenities = {};
+    let parsedCapacity = { adults: 2, children: 0 };
+    
+    try {
+      parsedAmenities = typeof amenities === 'string' ? JSON.parse(amenities) : (amenities || {});
+    } catch (e) {
+      console.error("Error parsing amenities:", e);
+    }
+    
+    try {
+      parsedCapacity = typeof capacity === 'string' ? JSON.parse(capacity) : (capacity || { adults: 2, children: 0 });
+    } catch (e) {
+      console.error("Error parsing capacity:", e);
+    }
 
     const room = new Room({
       branchId,
       floor: floor || 'First Floor',
       roomType: roomType || 'Single',
       price: Number(price),
-      description,
+      description: description || '',
       images,
-      amenities: parsedAmenities || {},
-      capacity: parsedCapacity || { adults: 2, children: 0 },
-      roomNumber,
+      amenities: parsedAmenities,
+      capacity: parsedCapacity,
+      roomNumber: roomNumber || '',
     });
 
     const createdRoom = await room.save();
+    console.log("Room created successfully:", createdRoom._id);
     res.status(201).json(createdRoom);
   } catch (error) {
     console.error("Error creating room:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message || "Failed to create room" });
   }
 });
 
@@ -124,6 +141,9 @@ const getRoomById = asyncHandler(async (req, res) => {
 // Update room
 const updateRoom = asyncHandler(async (req, res) => {
   try {
+    console.log("=== UPDATE ROOM ===", req.params.id);
+    console.log("Request body:", req.body);
+    
     const { floor, roomType, price, description, amenities, capacity, roomNumber, isAvailable, existingImages } = req.body;
     
     const room = await Room.findById(req.params.id);
@@ -134,13 +154,23 @@ const updateRoom = asyncHandler(async (req, res) => {
     // Handle existing images
     let images = [];
     if (existingImages) {
-      images = typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages;
+      try {
+        images = typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages;
+      } catch (e) {
+        console.error("Error parsing existingImages:", e);
+        images = room.images || [];
+      }
     }
 
     // Upload new images
     if (req.files && req.files.length > 0) {
-      const newImages = await uploadImages(req.files.slice(0, 5 - images.length));
-      images = [...images, ...newImages].slice(0, 5);
+      try {
+        const newImages = await uploadImages(req.files.slice(0, 5 - images.length));
+        images = [...images, ...newImages].slice(0, 5);
+      } catch (uploadError) {
+        console.error("Image upload failed during update:", uploadError);
+        // Keep existing images if upload fails
+      }
     }
 
     const updateData = {
@@ -154,37 +184,57 @@ const updateRoom = asyncHandler(async (req, res) => {
     };
 
     if (amenities) {
-      updateData.amenities = typeof amenities === 'string' ? JSON.parse(amenities) : amenities;
+      try {
+        updateData.amenities = typeof amenities === 'string' ? JSON.parse(amenities) : amenities;
+      } catch (e) {
+        console.error("Error parsing amenities:", e);
+      }
     }
     if (capacity) {
-      updateData.capacity = typeof capacity === 'string' ? JSON.parse(capacity) : capacity;
+      try {
+        updateData.capacity = typeof capacity === 'string' ? JSON.parse(capacity) : capacity;
+      } catch (e) {
+        console.error("Error parsing capacity:", e);
+      }
     }
 
     const updatedRoom = await Room.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    console.log("Room updated successfully:", req.params.id);
     res.json(updatedRoom);
   } catch (error) {
     console.error("Error updating room:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message || "Failed to update room" });
   }
 });
 
 // Delete room
 const deleteRoom = asyncHandler(async (req, res) => {
   try {
+    console.log("=== DELETE ROOM ===", req.params.id);
+    
     const room = await Room.findById(req.params.id);
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    // Delete images
-    for (const imageUrl of room.images) {
-      await deleteFile(imageUrl);
+    // Try to delete images, but don't fail if image deletion fails
+    if (room.images && room.images.length > 0) {
+      for (const imageUrl of room.images) {
+        try {
+          await deleteFile(imageUrl);
+        } catch (imgError) {
+          console.error("Failed to delete image:", imageUrl, imgError);
+          // Continue with room deletion even if image deletion fails
+        }
+      }
     }
 
     await Room.deleteOne({ _id: req.params.id });
+    console.log("Room deleted successfully:", req.params.id);
     res.json({ message: "Room deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Error deleting room:", error);
+    res.status(500).json({ message: error.message || "Failed to delete room" });
   }
 });
 

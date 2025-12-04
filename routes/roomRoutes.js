@@ -19,10 +19,13 @@ const fileFilter = (req, file, cb) => {
     cb(new Error("Only image files are allowed!"), false);
   }
 };
-
 const upload = multer({
   storage,
   fileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 10MB max file size
+    files: 5, // Max 5 files
+  },
 });
 
 // Error handling middleware for multer
