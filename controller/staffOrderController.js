@@ -225,14 +225,16 @@ exports.createGuestOrder = async (req, res) => {
       })
     }
 
-    // Check if order already exists
-    const existingOrder = await StaffOrder.findOne({ orderId })
-    if (existingOrder) {
-      return res.status(200).json({
-        success: true,
-        message: "Order already exists",
-        order: existingOrder,
-      })
+    // Check if order already exists (only if orderId is provided)
+    if (orderId) {
+      const existingOrder = await StaffOrder.findOne({ orderId })
+      if (existingOrder) {
+        return res.status(200).json({
+          success: true,
+          message: "Order already exists",
+          order: existingOrder,
+        })
+      }
     }
 
     // Import Table model
@@ -258,7 +260,7 @@ exports.createGuestOrder = async (req, res) => {
 
     // Create the guest order using StaffOrder model
     const guestOrder = new StaffOrder({
-      orderId,
+      orderId: orderId || `GUEST-${Date.now()}`,
       customerName: customerName.trim(),
       customerMobile: customerMobile.trim(),
       branchId: branchId,

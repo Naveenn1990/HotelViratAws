@@ -6,8 +6,11 @@ const { validateStock, updateStockAfterOrder, restoreStockOnCancellation } = req
 // Create staff order after payment success (EXISTING)
 router.post("/create-after-payment", validateStock, staffOrderController.createStaffOrderAfterPayment, updateStockAfterOrder)
 
-// NEW: Create guest order
+// NEW: Create guest order (with stock validation)
 router.post("/create-guest-order", validateStock, staffOrderController.createGuestOrder, updateStockAfterOrder)
+
+// NEW: Create guest order without stock validation (for menu items without stock tracking)
+router.post("/create-guest-order-no-stock", staffOrderController.createGuestOrder)
 
 // Get orders by userId - EXISTING (must be before /:id route)
 router.get("/user/:userId", staffOrderController.getOrdersByUserId)
