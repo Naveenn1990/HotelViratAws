@@ -14,7 +14,7 @@ const roomBookingSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: false, // Optional for walk-in guests
+    required: false,
   },
   userName: {
     type: String,
@@ -81,6 +81,20 @@ const roomBookingSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  cashAmount: {
+    type: Number,
+    default: 0,
+  },
+  onlineAmount: {
+    type: Number,
+    default: 0,
+  },
+  payments: [{
+    amount: { type: Number, required: true },
+    method: { type: String, enum: ['cash', 'online'], required: true },
+    date: { type: Date, default: Date.now },
+    note: { type: String }
+  }],
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'checked-in', 'checked-out', 'cancelled', 'cancel-requested'],

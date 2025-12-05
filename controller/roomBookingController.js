@@ -5,7 +5,7 @@ const asyncHandler = require("express-async-handler");
 // Create walk-in booking (for receptionist - no userId required)
 const createWalkInBooking = asyncHandler(async (req, res) => {
   try {
-    const { roomId, branchId, userName, userPhone, userEmail, guestGstNumber, checkInDate, checkOutDate, checkInTime, checkOutTime, totalPrice, nights, baseAmount, gstType, cgst, sgst, igst, amountPaid, status, paymentStatus } = req.body;
+    const { roomId, branchId, userName, userPhone, userEmail, guestGstNumber, checkInDate, checkOutDate, checkInTime, checkOutTime, totalPrice, nights, baseAmount, gstType, cgst, sgst, igst, amountPaid, cashAmount, onlineAmount, payments, status, paymentStatus } = req.body;
 
     if (!roomId || !userName || !userPhone || !checkInDate || !checkOutDate) {
       return res.status(400).json({ message: "Missing required fields: roomId, userName, userPhone, checkInDate, checkOutDate" });
@@ -50,6 +50,9 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
       igst: igst || 0,
       totalPrice,
       amountPaid: amountPaid || 0,
+      cashAmount: cashAmount || 0,
+      onlineAmount: onlineAmount || 0,
+      payments: payments || [],
       status: status || 'checked-in',
       paymentStatus: paymentStatus || 'pending',
     });
@@ -205,7 +208,7 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
 // Update payment amount
 const updatePayment = asyncHandler(async (req, res) => {
   try {
-    const { amountPaid } = req.body;
+    const { amountPaid, paymentMethod, paymentAmount } = req.body;
     const booking = await RoomBooking.findById(req.params.id);
 
     if (!booking) {
@@ -213,6 +216,26 @@ const updatePayment = asyncHandler(async (req, res) => {
     }
 
     booking.amountPaid = amountPaid;
+    
+    // Track payment by method
+    if (paymentMethod && paymentAmount > 0) {
+      if (paymentMethod === 'cash') {
+        booking.cashAmount = (booking.cashAmount || 0) + paymentAmount;
+      } else if (paymentMethod === 'online') {
+        booking.onlineAmount = (booking.onlineAmount || 0) + paymentAmount;
+      }
+      
+      // Add to payments array
+      if (!booking.payments) {
+        booking.payments = [];
+      }
+      booking.payments.push({
+        amount: paymentAmount,
+        method: paymentMethod,
+        date: new Date()
+      });
+    }
+    
     // Update payment status based on amount paid
     if (amountPaid >= booking.totalPrice) {
       booking.paymentStatus = 'paid';
@@ -327,6 +350,77 @@ const getCancellationRequests = asyncHandler(async (req, res) => {
   }
 });
 
+// Get payment summary (for admin dashboard)
+const getPaymentSummary = asyncHandler(async (req, res) => {
+  try {
+    const { startDate, endDate, branchId } = req.query;
+    
+    const filter = {};
+    
+    // Date filter
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+    
+    if (branchId) filter.branchId = branchId;
+
+    const bookings = await RoomBooking.find(filter)
+      .populate('roomId', 'roomNumber roomType')
+      .populate('branchId', 'name')
+      .sort({ createdAt: -1 });
+
+    // Calculate totals
+    let totalCash = 0;
+    let totalOnline = 0;
+    let totalAmount = 0;
+    let totalPending = 0;
+
+    bookings.forEach(booking => {
+      totalCash += booking.cashAmount || 0;
+      totalOnline += booking.onlineAmount || 0;
+      totalAmount += booking.amountPaid || 0;
+      if (booking.paymentStatus === 'pending') {
+        totalPending += (booking.totalPrice || 0) - (booking.amountPaid || 0);
+      }
+    });
+
+    res.json({
+      summary: {
+        totalCash,
+        totalOnline,
+        totalCollected: totalAmount,
+        totalPending,
+        bookingCount: bookings.length
+      },
+      bookings: bookings.map(b => ({
+        _id: b._id,
+        roomNumber: b.roomId?.roomNumber || 'N/A',
+        roomType: b.roomId?.roomType || 'N/A',
+        branchName: b.branchId?.name || 'N/A',
+        guestName: b.userName,
+        checkInDate: b.checkInDate,
+        checkOutDate: b.checkOutDate,
+        totalPrice: b.totalPrice,
+        amountPaid: b.amountPaid,
+        cashAmount: b.cashAmount || 0,
+        onlineAmount: b.onlineAmount || 0,
+        paymentStatus: b.paymentStatus,
+        status: b.status,
+        payments: b.payments || [],
+        createdAt: b.createdAt
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createBooking,
   createWalkInBooking,
@@ -339,4 +433,5 @@ module.exports = {
   requestCancellation,
   approveCancellation,
   getCancellationRequests,
+  getPaymentSummary,
 };
