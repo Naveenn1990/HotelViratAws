@@ -85,13 +85,45 @@ app.use("/uploads", (req, res, next) => {
 });
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// MongoDB Connection
+// MongoDB Connection with better error handling and reconnection
 const mongoURI = process.env.MONGO_URI || 'mongodb+srv://hotelvirat:zR4WlMNuRO3ZB60x@cluster0.vyfwyjl.mongodb.net/HotelVirat';
-console.log('Connecting to MongoDB:', mongoURI);
+console.log('🔄 Connecting to MongoDB...');
+
 mongoose
-  .connect(mongoURI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log("Error: ", err));
+  .connect(mongoURI, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+  })
+  .then(() => {
+    console.log("✅ MongoDB Connected Successfully");
+    console.log("📊 Connection State:", mongoose.connection.readyState === 1 ? "Connected" : "Not Connected");
+    console.log("📊 Database:", mongoose.connection.db.databaseName);
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB Connection Error: ", err.message);
+    console.log("💡 General troubleshooting:");
+    console.log("1. MongoDB server is running");
+    console.log("2. MONGO_URI is correct in your .env file");
+    console.log("3. Network connectivity to MongoDB");
+    console.log("4. Check MongoDB Atlas cluster status");
+  });
+
+// MongoDB connection event handlers
+mongoose.connection.on('connected', () => {
+  console.log('✅ MongoDB connected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB connection error:', err.message);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('✅ MongoDB reconnected successfully');
+});
 
 // Use Routes
 

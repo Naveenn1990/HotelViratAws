@@ -75,6 +75,15 @@ const staffOrderSchema = new mongoose.Schema(
       type: String,
       required: true, // Store branch name for easy access
     },
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Categoryy",
+      required: false, // Optional - for filtering orders by category
+    },
+    categoryName: {
+      type: String,
+      required: false, // Store category name for easy access
+    },
     tableId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Table",
