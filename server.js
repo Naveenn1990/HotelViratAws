@@ -130,6 +130,7 @@ mongoose.connection.on('reconnected', () => {
 const userRoutes = require("./routes/userRoutes");
 const branchRoutes = require("./routes/branchRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
+const subcategoryRoutes = require("./routes/subcategoryRoutes");
 const menuRoutes = require("./routes/menuRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
@@ -208,6 +209,7 @@ app.use("/api/v1/hotel/user-auth", userRoutes);
 app.use("/api/v1/hotel/branch", branchRoutes);
 app.use("/api/v1/hotel", restaurantProfileRoutes); // Adapter routes for restaurant compatibility
 app.use("/api/v1/hotel/category", categoryRoutes);
+app.use("/api/v1/hotel/subcategory", subcategoryRoutes);
 app.use("/api/v1/hotel/menu", menuRoutes);
 app.use("/api/v1/hotel/cart", cartRoutes);
 app.use("/api/v1/hotel/order", orderRoutes);

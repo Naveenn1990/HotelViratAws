@@ -14,7 +14,8 @@ exports.createMenuItem = async (req, res) => {
       quantities,
       prices,
       menuTypes,
-      categoryId, 
+      categoryId,
+      subcategoryId,
       branchId,
       subscriptionEnabled,
       subscriptionPlans,
@@ -113,6 +114,7 @@ exports.createMenuItem = async (req, res) => {
       prices: parsedPrices,
       menuTypes: parsedMenuTypes || parsedQuantities,
       categoryId,
+      subcategoryId: subcategoryId || null,
       branchId,
       image,
       subscriptionEnabled: subscriptionEnabled || false,
@@ -151,8 +153,9 @@ exports.getAllMenuItems = async (req, res) => {
     
     const menuItems = await Menu.find(filter)
       .populate('categoryId', 'name')
+      .populate('subcategoryId', 'name')
       .populate('branchId', 'name')
-      .select('name itemName description price quantities prices menuTypes image categoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans')
+      .select('name itemName description price quantities prices menuTypes image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans')
       .sort({ name: 1 });
       
     res.status(200).json(menuItems);
@@ -166,8 +169,9 @@ exports.getMenuItemById = async (req, res) => {
   try {
     const menuItem = await Menu.findById(req.params.id)
       .populate('categoryId', 'name')
+      .populate('subcategoryId', 'name')
       .populate('branchId', 'name')
-      .select('name description price image categoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans');
+      .select('name description price image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans');
       
     if (!menuItem) {
       return res.status(404).json({ message: 'Menu item not found' });
@@ -189,7 +193,8 @@ exports.updateMenuItem = async (req, res) => {
       quantities,
       prices,
       menuTypes,
-      categoryId, 
+      categoryId,
+      subcategoryId,
       branchId,
       subscriptionEnabled,
       subscriptionPlans
@@ -244,7 +249,8 @@ exports.updateMenuItem = async (req, res) => {
       quantities: parsedQuantities,
       prices: parsedPrices,
       menuTypes: parsedMenuTypes || parsedQuantities,
-      categoryId, 
+      categoryId,
+      subcategoryId: subcategoryId || null,
       branchId,
       subscriptionEnabled,
       subscriptionPlans: parsedSubscriptionPlans
