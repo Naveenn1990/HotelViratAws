@@ -41,6 +41,11 @@ const menuSchema = new mongoose.Schema({
     ref: 'Categoryy',
     required: [true, 'Category ID is required']
   },
+  subcategoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subcategory',
+    default: null
+  },
   branchId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
