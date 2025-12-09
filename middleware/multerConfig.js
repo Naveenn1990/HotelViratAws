@@ -1,18 +1,15 @@
 const multer = require("multer");
 const path = require("path");
-
 // Set storage engine for memory (required for AWS S3 upload)
 const storage = multer.memoryStorage();
-
 // Initialize upload
-const upload = multer({
+ const upload = multer({
     storage: storage,
     limits: { fileSize: 50000000 },
     fileFilter: (req, file, cb) => {
         checkFileType(file, cb);
     }
 });
-
 // Check file type
 function checkFileType(file, cb) {
     // Allowed file extensions for images and videos
@@ -26,5 +23,4 @@ function checkFileType(file, cb) {
         cb(new Error("Images and Videos Only!"));
     }
 }
-
-module.exports = upload;
+module.exports = upload; 
