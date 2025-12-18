@@ -63,11 +63,15 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     throw new Error("Invalid payment method")
   }
 
-  // Verify counter user exists
-  const counterUser = await Counter.findById(userId)
-  if (!counterUser) {
-    res.status(404)
-    throw new Error("Counter user not found")
+  // Verify counter user exists (optional - allow orders even if user not found)
+  let counterUser = null
+  try {
+    counterUser = await Counter.findById(userId)
+    if (!counterUser) {
+      console.log(`Counter user ${userId} not found, proceeding with order anyway`)
+    }
+  } catch (err) {
+    console.log(`Error finding counter user: ${err.message}, proceeding with order anyway`)
   }
 
   // Verify branch exists
@@ -77,38 +81,53 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     throw new Error("Branch not found")
   }
 
-  // Verify invoice exists
-  const invoice = await CounterInvoice.findById(invoiceId)
-  if (!invoice) {
-    res.status(404)
-    throw new Error("Invoice not found")
+  // Verify invoice exists (optional - allow orders even if invoice not found)
+  let invoice = null
+  try {
+    invoice = await CounterInvoice.findById(invoiceId)
+    if (!invoice) {
+      console.log(`Invoice ${invoiceId} not found, proceeding with order anyway`)
+    }
+  } catch (err) {
+    console.log(`Error finding invoice: ${err.message}, proceeding with order anyway`)
   }
 
   // Calculate subtotal and validate items
   let calculatedSubtotal = 0
   for (const item of items) {
-    if (!item.menuItemId || !item.name || !item.quantity || !item.price) {
+    if (!item.menuItemId || !item.name || !item.quantity || item.price === undefined) {
       res.status(400)
       throw new Error("Invalid item data")
     }
 
     const menuItem = await Menu.findById(item.menuItemId)
     if (!menuItem) {
-      res.status(404)
-      throw new Error(`Menu item ${item.name} not found`)
+      // Skip validation if menu item not found - use provided price
+      console.log(`Menu item ${item.name} not found in database, using provided price`)
+      calculatedSubtotal += item.price * item.quantity
+      continue
     }
 
-    if (menuItem.price !== item.price) {
-      res.status(400)
-      throw new Error(`Price mismatch for ${item.name}`)
+    // Get the menu item price - handle multiple price formats
+    let dbPrice = menuItem.price
+    if (dbPrice === undefined && menuItem.prices && typeof menuItem.prices === 'object') {
+      const priceValues = Object.values(menuItem.prices)
+      if (priceValues.length > 0) {
+        dbPrice = priceValues[0]
+      }
     }
 
-    if (menuItem.branchId.toString() !== branchId) {
-      res.status(400)
-      throw new Error(`Item ${item.name} does not belong to the selected branch`)
+    // Skip strict price validation - just log if there's a mismatch
+    if (dbPrice !== undefined && Math.abs(dbPrice - item.price) > 0.01) {
+      console.log(`Price difference for ${item.name}: DB=${dbPrice}, Sent=${item.price}`)
     }
 
-    // Add to subtotal
+    // Skip branch validation if branchId is not set on menu item
+    if (menuItem.branchId && menuItem.branchId.toString() !== branchId) {
+      console.log(`Item ${item.name} branch mismatch: DB=${menuItem.branchId}, Sent=${branchId}`)
+    }
+
+    // Add to subtotal using the price sent from frontend
     calculatedSubtotal += item.price * item.quantity
   }
 

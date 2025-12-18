@@ -242,22 +242,28 @@ exports.createGuestOrder = async (req, res) => {
     // Import Table model
     const Table = require("../model/Table")
 
-    // Find the table by branch and table number
-    const table = await Table.findOne({
-      branchId: branchId,
-      number: Number.parseInt(tableNumber),
-    })
-
     let tableId = new mongoose.Types.ObjectId() // Default to a new ObjectId
 
-    // If table exists, use its ID and update its status
-    if (table) {
-      tableId = table._id
+    // Only try to find table if tableNumber is a valid number (not "Counter" or other text)
+    const tableNum = Number.parseInt(tableNumber)
+    if (!isNaN(tableNum)) {
+      // Find the table by branch and table number
+      const table = await Table.findOne({
+        branchId: branchId,
+        number: tableNum,
+      })
 
-      // Update table status to reserved
-      await Table.findByIdAndUpdate(tableId, { status: "reserved" }, { new: true })
+      // If table exists, use its ID and update its status
+      if (table) {
+        tableId = table._id
 
-      console.log(`Table ${tableNumber} status updated to reserved`)
+        // Update table status to reserved
+        await Table.findByIdAndUpdate(tableId, { status: "reserved" }, { new: true })
+
+        console.log(`Table ${tableNumber} status updated to reserved`)
+      }
+    } else {
+      console.log(`Table number "${tableNumber}" is not a number, skipping table lookup`)
     }
 
     // Create the guest order using StaffOrder model
