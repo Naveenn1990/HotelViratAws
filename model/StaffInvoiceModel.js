@@ -33,7 +33,7 @@ const staffInvoiceSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "StaffLogin", // Reference to StaffLogin model
-      required: [true, "User ID is required"],
+      required: false, // Made optional for guest orders
     },
     invoiceId: {
       type: String,

@@ -49,7 +49,7 @@ exports.createInvoiceFromOrder = async (req, res) => {
 
     // Create invoice data from order
     const invoiceData = {
-      userId: order.userId._id, // Include userId
+      userId: order.userId ? order.userId._id : null, // Handle guest orders (userId can be null)
       invoiceId: generateInvoiceId(),
       orderId: order.orderId,
       branchId: order.branchId,

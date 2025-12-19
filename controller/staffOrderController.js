@@ -367,6 +367,32 @@ exports.getOrdersByUserId = async (req, res) => {
   }
 }
 
+// Get available status values from database
+exports.getAvailableStatuses = async (req, res) => {
+  try {
+    // Get distinct status values from orders
+    const orderStatuses = await StaffOrder.distinct("status")
+    const paymentStatuses = await StaffOrder.distinct("paymentStatus")
+    
+    // Filter out null/undefined values and sort
+    const validOrderStatuses = orderStatuses.filter(status => status && status.trim()).sort()
+    const validPaymentStatuses = paymentStatuses.filter(status => status && status.trim()).sort()
+    
+    res.status(200).json({
+      success: true,
+      orderStatuses: validOrderStatuses,
+      paymentStatuses: validPaymentStatuses,
+    })
+  } catch (error) {
+    console.error("Error fetching available statuses:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error fetching available statuses",
+      error: error.message,
+    })
+  }
+}
+
 // Get all orders (both staff and guest) - UPDATED FUNCTION
 exports.getAllStaffOrders = async (req, res) => {
   try {
@@ -381,6 +407,11 @@ exports.getAllStaffOrders = async (req, res) => {
     if (status) filter.status = status
     if (paymentStatus) filter.paymentStatus = paymentStatus
     if (userId) filter.userId = userId
+    
+    // NEW: Filter by category (for category-based order screens)
+    const { categoryId, categoryName } = req.query
+    if (categoryId) filter.categoryId = categoryId
+    if (categoryName) filter.categoryName = new RegExp(categoryName, "i")
 
     // NEW: Filter by order type
     if (orderType === "staff") {
@@ -490,11 +521,25 @@ exports.updateStaffOrderStatus = async (req, res) => {
   try {
     const { status, paymentStatus, paymentMethod, notes } = req.body
 
+    console.log(`Backend: Updating order ${req.params.id}`)
+    console.log(`Backend: Update data:`, { status, paymentStatus, paymentMethod, notes })
+
     const updateData = {}
     if (status) updateData.status = status
     if (paymentStatus) updateData.paymentStatus = paymentStatus
     if (paymentMethod) updateData.paymentMethod = paymentMethod
     if (notes !== undefined) updateData.notes = notes
+
+    // Validate order status if provided
+    if (status) {
+      const validOrderStatuses = ["pending", "preparing", "served", "completed", "cancelled"]
+      if (!validOrderStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid order status. Valid statuses are: " + validOrderStatuses.join(", "),
+        })
+      }
+    }
 
     // Validate payment status if provided
     if (paymentStatus) {
@@ -502,7 +547,7 @@ exports.updateStaffOrderStatus = async (req, res) => {
       if (!validPaymentStatuses.includes(paymentStatus)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid payment status",
+          message: "Invalid payment status. Valid statuses are: " + validPaymentStatuses.join(", "),
         })
       }
     }
@@ -518,6 +563,17 @@ exports.updateStaffOrderStatus = async (req, res) => {
       }
     }
 
+    // Find the order first to log current status
+    const currentOrder = await StaffOrder.findById(req.params.id)
+    if (!currentOrder) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    console.log(`Backend: Current order status - Order: ${currentOrder.status}, Payment: ${currentOrder.paymentStatus}`)
+
     const staffOrder = await StaffOrder.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
@@ -526,17 +582,21 @@ exports.updateStaffOrderStatus = async (req, res) => {
       .populate("tableId", "number capacity")
       .populate("userId", "name mobile")
 
-    if (!staffOrder) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      })
-    }
+    console.log(`Backend: Updated order status - Order: ${staffOrder.status}, Payment: ${staffOrder.paymentStatus}`)
+    console.log(`Backend: Order ${staffOrder.orderId} updated successfully`)
 
     res.status(200).json({
       success: true,
       message: "Order updated successfully",
       order: staffOrder,
+      previousStatus: {
+        status: currentOrder.status,
+        paymentStatus: currentOrder.paymentStatus
+      },
+      newStatus: {
+        status: staffOrder.status,
+        paymentStatus: staffOrder.paymentStatus
+      }
     })
   } catch (error) {
     console.error("Error updating order:", error)

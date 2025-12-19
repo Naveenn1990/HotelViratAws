@@ -15,6 +15,9 @@ router.post("/create-guest-order-no-stock", staffOrderController.createGuestOrde
 // Get orders by userId - EXISTING (must be before /:id route)
 router.get("/user/:userId", staffOrderController.getOrdersByUserId)
 
+// Get available status values - NEW
+router.get("/available-statuses", staffOrderController.getAvailableStatuses)
+
 // Get all orders (both staff and guest) - EXISTING
 router.get("/", staffOrderController.getAllStaffOrders)
 
