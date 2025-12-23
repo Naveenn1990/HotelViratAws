@@ -19,6 +19,13 @@ exports.createMenuItem = async (req, res) => {
       branchId,
       subscriptionEnabled,
       subscriptionPlans,
+      subscriptionAmount,
+      subscriptionDiscount,
+      subscriptionDuration,
+      subscription3Days,
+      subscription1Week,
+      subscription1Month,
+      subscription30Days, // backward compatibility
       _id
     } = req.body;
 
@@ -117,8 +124,15 @@ exports.createMenuItem = async (req, res) => {
       subcategoryId: subcategoryId || null,
       branchId,
       image,
-      subscriptionEnabled: subscriptionEnabled || false,
-      subscriptionPlans: parsedSubscriptionPlans || []
+      subscriptionEnabled: subscriptionEnabled === 'true' || subscriptionEnabled === true,
+      subscriptionPlans: parsedSubscriptionPlans || [],
+      subscriptionAmount: parseFloat(subscriptionAmount) || 0,
+      subscriptionDiscount: parseFloat(subscriptionDiscount) || 0,
+      subscriptionDuration: subscriptionDuration || '3days',
+      subscription3Days: parseFloat(subscription3Days) || 0,
+      subscription1Week: parseFloat(subscription1Week) || 0,
+      subscription1Month: parseFloat(subscription1Month) || parseFloat(subscription30Days) || 0, // backward compatibility
+      subscription30Days: parseFloat(subscription30Days) || parseFloat(subscription1Month) || 0 // backward compatibility
     };
 
     // If _id is provided (from dual backend sync), use it
@@ -155,7 +169,7 @@ exports.getAllMenuItems = async (req, res) => {
       .populate('categoryId', 'name')
       .populate('subcategoryId', 'name')
       .populate('branchId', 'name')
-      .select('name itemName description price quantities prices menuTypes image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans')
+      .select('name itemName description price quantities prices menuTypes image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans subscriptionAmount subscriptionDiscount subscriptionDuration subscription3Days subscription1Week subscription1Month subscription30Days')
       .sort({ name: 1 });
       
     res.status(200).json(menuItems);
@@ -171,7 +185,7 @@ exports.getMenuItemById = async (req, res) => {
       .populate('categoryId', 'name')
       .populate('subcategoryId', 'name')
       .populate('branchId', 'name')
-      .select('name description price image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans');
+      .select('name description price image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans subscriptionAmount subscriptionDiscount subscriptionDuration subscription3Days subscription1Week subscription1Month subscription30Days');
       
     if (!menuItem) {
       return res.status(404).json({ message: 'Menu item not found' });
@@ -197,7 +211,14 @@ exports.updateMenuItem = async (req, res) => {
       subcategoryId,
       branchId,
       subscriptionEnabled,
-      subscriptionPlans
+      subscriptionPlans,
+      subscriptionAmount,
+      subscriptionDiscount,
+      subscriptionDuration,
+      subscription3Days,
+      subscription1Week,
+      subscription1Month,
+      subscription30Days
     } = req.body;
 
     console.log('Updating menu item with data:', { name, itemName, quantities, prices, menuTypes, categoryId, branchId });
@@ -252,8 +273,15 @@ exports.updateMenuItem = async (req, res) => {
       categoryId,
       subcategoryId: subcategoryId || null,
       branchId,
-      subscriptionEnabled,
-      subscriptionPlans: parsedSubscriptionPlans
+      subscriptionEnabled: subscriptionEnabled === 'true' || subscriptionEnabled === true,
+      subscriptionPlans: parsedSubscriptionPlans || [],
+      subscriptionAmount: parseFloat(subscriptionAmount) || 0,
+      subscriptionDiscount: parseFloat(subscriptionDiscount) || 0,
+      subscriptionDuration: subscriptionDuration || '3days',
+      subscription3Days: parseFloat(subscription3Days) || 0,
+      subscription1Week: parseFloat(subscription1Week) || 0,
+      subscription1Month: parseFloat(subscription1Month) || parseFloat(subscription30Days) || 0, // backward compatibility
+      subscription30Days: parseFloat(subscription30Days) || parseFloat(subscription1Month) || 0 // backward compatibility
     };
 
     // Remove undefined fields
@@ -315,6 +343,13 @@ exports.updateMenuItem = async (req, res) => {
 
     res.status(200).json({ message: 'Menu item updated successfully', menuItem });
   } catch (error) {
+    console.error('Error updating menu item:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      errors: error.errors
+    });
     res.status(400).json({ message: 'Error updating menu item', error: error.message });
   }
 };

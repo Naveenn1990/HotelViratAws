@@ -94,6 +94,61 @@ const menuSchema = new mongoose.Schema({
   subscriptionEnabled: {
     type: Boolean,
     default: false
+  },
+  subscriptionAmount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription amount cannot be negative']
+  },
+  subscriptionDiscount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription discount cannot be negative'],
+    max: [100, 'Subscription discount cannot exceed 100%']
+  },
+  subscriptionDuration: {
+    type: String,
+    enum: ['3days', '1week', '1month', '30days'], // include old value for backward compatibility
+    default: '3days'
+  },
+  subscription3Days: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription price cannot be negative']
+  },
+  subscription1Week: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription price cannot be negative']
+  },
+  subscription1Month: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription price cannot be negative']
+  },
+  subscription3DaysDiscount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription discount cannot be negative'],
+    max: [100, 'Subscription discount cannot exceed 100%']
+  },
+  subscription1WeekDiscount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription discount cannot be negative'],
+    max: [100, 'Subscription discount cannot exceed 100%']
+  },
+  subscription1MonthDiscount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription discount cannot be negative'],
+    max: [100, 'Subscription discount cannot exceed 100%']
+  },
+  // Keep old field for backward compatibility
+  subscription30Days: {
+    type: Number,
+    default: 0,
+    min: [0, 'Subscription price cannot be negative']
   }
 
 }, {

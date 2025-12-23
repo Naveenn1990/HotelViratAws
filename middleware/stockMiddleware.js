@@ -1,93 +1,57 @@
 const Menu = require('../model/menuModel');
 const StockHistory = require('../model/stockHistoryModel');
 
-// Middleware to validate stock before creating order
+// Middleware to validate stock before creating order (DISABLED - out of stock functionality removed)
 const validateStock = async (req, res, next) => {
   try {
     const { items, branchId } = req.body;
 
-    console.log('🔍 STOCK VALIDATION DEBUG:');
+    console.log('🔍 STOCK VALIDATION DISABLED - SKIPPING:');
     console.log('- items:', items);
     console.log('- branchId:', branchId);
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      console.log('❌ No items provided for validation');
+      console.log('❌ No items provided');
       return res.status(400).json({
         success: false,
         message: 'Items array is required'
       });
     }
 
-    const stockValidationErrors = [];
+    // Skip all stock validation - just prepare basic stock updates without checking availability
     const stockUpdates = [];
 
     for (const item of items) {
       const product = await Menu.findById(item.menuItemId);
       
       if (!product) {
-        stockValidationErrors.push({
-          productId: item.menuItemId,
-          productName: item.name,
-          error: 'Product not found'
-        });
+        console.log(`⚠️ Product ${item.menuItemId} not found, but continuing anyway`);
         continue;
       }
 
       if (product.branchId.toString() !== branchId) {
-        stockValidationErrors.push({
-          productId: item.menuItemId,
-          productName: item.name,
-          error: 'Product not available in this branch'
-        });
+        console.log(`⚠️ Product ${item.name} not in branch ${branchId}, but continuing anyway`);
         continue;
       }
 
-      if (product.stock < item.quantity) {
-        stockValidationErrors.push({
-          productId: item.menuItemId,
-          productName: item.name,
-          availableStock: product.stock,
-          requestedQuantity: item.quantity,
-          error: 'Insufficient stock'
-        });
-        continue;
-      }
-
-      if (product.stock <= 0) {
-        stockValidationErrors.push({
-          productId: item.menuItemId,
-          productName: item.name,
-          error: 'Product is out of stock'
-        });
-        continue;
-      }
-
-      // Prepare stock update for this item
+      // Prepare stock update without validation (allow negative stock)
       stockUpdates.push({
         productId: item.menuItemId,
         quantity: item.quantity,
         oldStock: product.stock,
-        newStock: product.stock - item.quantity
+        newStock: Math.max(0, product.stock - item.quantity) // Prevent negative stock but don't block order
       });
     }
 
-    if (stockValidationErrors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Stock validation failed',
-        errors: stockValidationErrors
-      });
-    }
-
-    // Attach stock updates to request for later use
+    // Always proceed regardless of stock levels
     req.stockUpdates = stockUpdates;
-    console.log('✅ Stock validation completed. Attached stockUpdates to request:', stockUpdates);
+    console.log('✅ Stock validation SKIPPED. Proceeding with order. Stock updates:', stockUpdates);
     next();
   } catch (error) {
     console.error('Stock validation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error validating stock',
+      message: 'Error processing order',
       error: error.message
     });
   }
@@ -188,7 +152,7 @@ const restoreStockOnCancellation = async (req, res, next) => {
       });
     }
 
-    const updatedBy = req.user?.id || req.admin?.id;
+    const updatedBy = req.user?.id || req.admin?.id || 'system';
 
     // Restore stock for each item
     for (const item of order.items) {
@@ -224,11 +188,10 @@ const restoreStockOnCancellation = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Stock restoration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error restoring stock',
-      error: error.message
-    });
+    // Don't block the cancellation if stock restoration fails
+    // Just log the error and continue
+    console.log('Continuing with order cancellation despite stock restoration error');
+    next();
   }
 };
 

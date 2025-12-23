@@ -499,3 +499,73 @@ exports.getAllOrders = async (req, res) => {
     })
   }
 }
+
+// Delete a single order
+exports.deleteOrder = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid order ID format" })
+    }
+
+    const order = await Order.findById(id)
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" })
+    }
+
+    await Order.findByIdAndDelete(id)
+
+    res.status(200).json({
+      success: true,
+      message: "Order deleted successfully"
+    })
+  } catch (error) {
+    console.error("Error deleting order:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error deleting order",
+      error: error.message
+    })
+  }
+}
+
+// Bulk delete orders (for clearing old test data)
+exports.bulkDeleteOrders = async (req, res) => {
+  try {
+    const { orderIds, deleteAll, beforeDate } = req.body
+
+    let deleteQuery = {}
+
+    if (deleteAll) {
+      // Delete all orders
+      deleteQuery = {}
+    } else if (beforeDate) {
+      // Delete orders before a specific date
+      deleteQuery = { createdAt: { $lt: new Date(beforeDate) } }
+    } else if (orderIds && Array.isArray(orderIds)) {
+      // Delete specific orders by IDs
+      deleteQuery = { _id: { $in: orderIds } }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide orderIds, set deleteAll to true, or provide beforeDate"
+      })
+    }
+
+    const result = await Order.deleteMany(deleteQuery)
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} orders`,
+      deletedCount: result.deletedCount
+    })
+  } catch (error) {
+    console.error("Error in bulk delete orders:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error deleting orders",
+      error: error.message
+    })
+  }
+}

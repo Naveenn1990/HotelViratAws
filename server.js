@@ -8,19 +8,14 @@ const rateLimit = require("express-rate-limit");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
-
 // Load environment variables from .env file
 dotenv.config();
-
 // Initialize Express app
 const app = express();
-
 // Middleware to parse JSON with increased limit for file uploads
 app.use(express.json({ limit: '50mb' }));
-
 // Middleware to parse URL-encoded data with increased limit
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
 // Enable CORS for all routes - Allow all origins for React Native development
 app.use(cors({ 
   origin: true, // Allow all origins for React Native
@@ -28,16 +23,13 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 })); // Vite dev aur production
-
 // Define the rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'production' ? 500 : 10000, // Higher limit for development
   message: "Too many requests from this IP, please try again after 15 minutes",
 });
-
 app.use(limiter);
-
 // Use morgan for logging
 app.use(morgan("dev"));
 // app.use(
@@ -52,14 +44,12 @@ app.use(morgan("dev"));
 //           "http://localhost:5173",
 //           "https://hotelvirat.com",
 //           "https://hotelvirat.s3.amazonaws.com"
-    
 //         ],
 //       },
 //     },
 //     crossOriginResourcePolicy: { policy: "cross-origin" },
 //   })
 // );
-
 // Create upload directories if they don't exist
 const createDirIfNotExists = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -67,7 +57,6 @@ const createDirIfNotExists = (dirPath) => {
     console.log(`Directory created: ${dirPath}`);
   }
 };
- 
 createDirIfNotExists("uploads");
 createDirIfNotExists("uploads/profile");
 createDirIfNotExists("uploads/category");
@@ -75,7 +64,6 @@ createDirIfNotExists("uploads/menu");
 createDirIfNotExists("uploads/offer");
 createDirIfNotExists("uploads/rooms");
 createDirIfNotExists("uploads/table");
-
 // Serve static files from the "uploads" directory
 // Add logging middleware for uploads
 app.use("/uploads", (req, res, next) => {
@@ -84,11 +72,9 @@ app.use("/uploads", (req, res, next) => {
   next();
 });
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
 // MongoDB Connection with better error handling and reconnection
 const mongoURI = process.env.MONGO_URI || 'mongodb+srv://hotelvirat:zR4WlMNuRO3ZB60x@cluster0.vyfwyjl.mongodb.net/HotelVirat';
 console.log('🔄 Connecting to MongoDB...');
-
 mongoose
   .connect(mongoURI, {
     serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
@@ -107,26 +93,20 @@ mongoose
     console.log("3. Network connectivity to MongoDB");
     console.log("4. Check MongoDB Atlas cluster status");
   });
-
 // MongoDB connection event handlers
 mongoose.connection.on('connected', () => {
   console.log('✅ MongoDB connected');
 });
-
 mongoose.connection.on('error', (err) => {
   console.error('❌ MongoDB connection error:', err.message);
 });
-
 mongoose.connection.on('disconnected', () => {
   console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
 });
-
 mongoose.connection.on('reconnected', () => {
   console.log('✅ MongoDB reconnected successfully');
 });
-
 // Use Routes
-
 const userRoutes = require("./routes/userRoutes");
 const branchRoutes = require("./routes/branchRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
@@ -171,7 +151,6 @@ const roomRoutes = require("./routes/roomRoutes");
 const roomBookingRoutes = require("./routes/roomBookingRoutes");
 const categoryAccessRoutes = require("./routes/categoryAccessRoutes");
 const receptionistAccessRoutes = require("./routes/receptionistAccessRoutes");
-
 //construction
 /* const roleRoutes = require('./routes/roleRoutes');
 const configurationRoutes = require('./routes/configurationRoutes');
@@ -200,10 +179,8 @@ const supervisorExpenseRoutes = require("./routes/supervisorexpenseRoutes");
 const PayslipCons = require ("./routes/payslipRoutes")
 const PayrollCons = require ("./routes/payrollRoutesConstruction")
  */
-
 // Restaurant Profile Adapter Routes (for WaveCrm compatibility)
 const restaurantProfileRoutes = require("./routes/restaurantProfileRoutes");
-
 // hotel Routes
 app.use("/api/v1/hotel/user-auth", userRoutes);
 app.use("/api/v1/hotel/branch", branchRoutes);
@@ -239,7 +216,6 @@ app.use("/api/v1/hotel/grn", goodsReceiptNoteRoutes);
 app.use("/api/v1/hotel/reservation", reservationRoutes);
 app.use("/api/v1/hotel/expense", expenseRoutes);
 /* app.use("/api/v1/hotel/attendance", attendanceRoutes); */
-
 app.use("/api/v1/hotel/purchase-user-auth", purchaseUserRoutes);
 app.use("/api/v1/hotel/product-submission", productSubmissionRoutes);
 app.use("/api/v1/hotel/stock", stockRoutes);
@@ -252,9 +228,7 @@ app.use("/api/v1/hotel/room", roomRoutes);
 app.use("/api/v1/hotel/room-booking", roomBookingRoutes);
 app.use("/api/v1/hotel/category-access", categoryAccessRoutes);
 app.use("/api/v1/hotel/receptionist-access", receptionistAccessRoutes);
-
 app.use(express.static(path.join(__dirname, 'build')));
-
 // Redirect all requests to the index.html file (except API and uploads)
 app.get('*', (req, res, next) => {
   // Skip catch-all for API routes and uploads
@@ -263,13 +237,6 @@ app.get('*', (req, res, next) => {
   }
   return res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
-
-
-
-
-
-
-
 // Global error handler middleware
 app.use((err, req, res, next) => {
   console.error("=== GLOBAL ERROR HANDLER ===");
@@ -280,7 +247,6 @@ app.use((err, req, res, next) => {
   console.error("Request URL:", req.url);
   console.error("Request method:", req.method);
   console.error("Request headers:", req.headers);
-  
   res.status(500).json({
     success: false,
     message: "Internal server error",
@@ -294,10 +260,8 @@ app.use((err, req, res, next) => {
     stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
   });
 });
-
 // Define Port
 const PORT = process.env.PORT || 9000;
-
 // Start the server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);

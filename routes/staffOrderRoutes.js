@@ -45,6 +45,9 @@ router.put("/:id/status", staffOrderController.updateStaffOrderStatus)
 // Delete order - EXISTING (works for both staff and guest orders)
 router.delete("/:id", staffOrderController.deleteStaffOrder)
 
+// Bulk delete orders - NEW (for clearing old data)
+router.delete("/bulk/clear-all", staffOrderController.bulkDeleteStaffOrders)
+
 // Add items to existing order - EXISTING
 router.post("/:id/items", staffOrderController.addItemsToStaffOrder)
 

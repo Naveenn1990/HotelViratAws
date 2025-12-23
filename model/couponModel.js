@@ -103,7 +103,11 @@ couponSchema.methods.isValid = function (orderValue, userId, branchId) {
     return { valid: false, message: "Coupon is inactive" };
   }
 
-  if (now > this.endDate) {
+  // Fix expiry check: Compare with end of day instead of start of day
+  const endOfDay = new Date(this.endDate);
+  endOfDay.setHours(23, 59, 59, 999); // Set to end of day (11:59:59 PM)
+
+  if (now > endOfDay) {
     return { valid: false, message: "Coupon has expired" };
   }
 

@@ -54,10 +54,22 @@ const createSubscriptionOrder = async (req, res) => {
       });
     }
 
-    // Find the subscription plan
-    const subscriptionPlan = product.subscriptionPlans.find(plan => 
-      plan.type === planType && plan.isActive
-    );
+    // Find the subscription plan - support both old and new structure
+    let subscriptionPlan = null;
+    
+    // For new tiered pricing, create a temporary plan object
+    if (planType === 'daily' && product.subscription3Days > 0) {
+      subscriptionPlan = { type: 'daily', price: product.subscription3Days, isActive: true };
+    } else if (planType === 'weekly' && product.subscription1Week > 0) {
+      subscriptionPlan = { type: 'weekly', price: product.subscription1Week, isActive: true };
+    } else if (planType === 'monthly' && product.subscription1Month > 0) {
+      subscriptionPlan = { type: 'monthly', price: product.subscription1Month, isActive: true };
+    } else {
+      // Fallback to old subscriptionPlans structure
+      subscriptionPlan = product.subscriptionPlans.find(plan => 
+        plan.type === planType && plan.isActive
+      );
+    }
 
     if (!subscriptionPlan) {
       return res.status(400).json({

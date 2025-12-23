@@ -644,6 +644,31 @@ exports.deleteStaffOrder = async (req, res) => {
   }
 }
 
+// Bulk delete staff orders - NEW FUNCTION (for clearing old data)
+exports.bulkDeleteStaffOrders = async (req, res) => {
+  try {
+    console.log('🗑️ Bulk delete staff orders requested')
+    
+    // Delete ALL staff orders (no restrictions for admin cleanup)
+    const result = await StaffOrder.deleteMany({})
+    
+    console.log(`🗑️ Deleted ${result.deletedCount} staff orders`)
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} orders`,
+      deletedCount: result.deletedCount
+    })
+  } catch (error) {
+    console.error("Error in bulk delete staff orders:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error deleting orders",
+      error: error.message
+    })
+  }
+}
+
 // Add items to an existing staff order - EXISTING FUNCTION
 exports.addItemsToStaffOrder = async (req, res) => {
   try {

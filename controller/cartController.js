@@ -36,7 +36,7 @@ exports.getCart = async (req, res) => {
 // Add item to cart
 exports.addToCart = async (req, res) => {
   try {
-    const { userId, branchId, menuItemId, quantity } = req.body;
+    const { userId, branchId, menuItemId, quantity, price } = req.body;
 
     // Validate required fields
     if (!userId || !branchId || !menuItemId) {
@@ -86,16 +86,27 @@ exports.addToCart = async (req, res) => {
     if (itemIndex > -1) {
       // Update quantity if item exists
       cart.items[itemIndex].quantity += quantity;
-    } else {
-      // Get price - check both price field and prices object
-      let itemPrice = menuItem.price;
-      console.log('Menu item price field:', menuItem.price);
-      console.log('Menu item prices object:', menuItem.prices);
       
-      if ((itemPrice === undefined || itemPrice === null) && menuItem.prices && typeof menuItem.prices === 'object') {
-        const priceValues = Object.values(menuItem.prices);
-        console.log('Price values from prices object:', priceValues);
-        itemPrice = priceValues.length > 0 ? Number(priceValues[0]) : 0;
+      // Update price if provided (in case subscription status changed)
+      if (price !== undefined && price !== null && typeof price === 'number' && !isNaN(price)) {
+        cart.items[itemIndex].price = price;
+        console.log('Updated existing item price to:', price);
+      }
+    } else {
+      // Use price from request if provided, otherwise fallback to menu item price
+      let itemPrice = price;
+      
+      if (itemPrice === undefined || itemPrice === null) {
+        // Fallback to menu item price
+        itemPrice = menuItem.price;
+        console.log('Menu item price field:', menuItem.price);
+        console.log('Menu item prices object:', menuItem.prices);
+        
+        if ((itemPrice === undefined || itemPrice === null) && menuItem.prices && typeof menuItem.prices === 'object') {
+          const priceValues = Object.values(menuItem.prices);
+          console.log('Price values from prices object:', priceValues);
+          itemPrice = priceValues.length > 0 ? Number(priceValues[0]) : 0;
+        }
       }
       
       // Ensure price is a valid number, default to 1 if still invalid (to pass validation)

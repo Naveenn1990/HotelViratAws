@@ -12,5 +12,7 @@ router.get("/number/:orderNumber", orderController.getOrderByNumber)
 router.get("/:id", orderController.getOrderById)
 router.put("/:id/status", restoreStockOnCancellation, orderController.updateOrderStatus)
 router.put("/:id/payment-status", orderController.updatePaymentStatus) // New route for payment status
+router.delete("/:id", orderController.deleteOrder) // Delete single order
+router.delete("/bulk/clear", orderController.bulkDeleteOrders) // Bulk delete orders
 router.get("/", orderController.getAllOrders)
 module.exports = router
