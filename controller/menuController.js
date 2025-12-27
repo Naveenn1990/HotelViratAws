@@ -2,8 +2,6 @@ const Menu = require('../model/menuModel');
 const fs = require('fs');
 const path = require('path');
 const { uploadFile2, deleteFile } = require('../middleware/AWS');
-
-// Create a new menu item
 exports.createMenuItem = async (req, res) => {
   try {
     const { 
@@ -154,15 +152,13 @@ exports.createMenuItem = async (req, res) => {
     res.status(400).json({ message: 'Error creating menu item', error: error.message });
   }
 };
-
-// Get all menu items
 exports.getAllMenuItems = async (req, res) => {
   try {
-    const { categoryId, branchId } = req.query;
-    
-    // Build filter based on query parameters
+    const { categoryId, subcategoryId, branchId } = req.query;
+
     const filter = {};
     if (categoryId) filter.categoryId = categoryId;
+    if (subcategoryId) filter.subcategoryId = subcategoryId;
     if (branchId) filter.branchId = branchId;
     
     const menuItems = await Menu.find(filter)
@@ -177,8 +173,6 @@ exports.getAllMenuItems = async (req, res) => {
     res.status(500).json({ message: 'Error fetching menu items', error: error.message });
   }
 };
-
-// Get a single menu item by ID
 exports.getMenuItemById = async (req, res) => {
   try {
     const menuItem = await Menu.findById(req.params.id)
@@ -195,8 +189,6 @@ exports.getMenuItemById = async (req, res) => {
     res.status(500).json({ message: 'Error fetching menu item', error: error.message });
   }
 };
-
-// Update a menu item
 exports.updateMenuItem = async (req, res) => {
   try {
     const { 
@@ -353,8 +345,6 @@ exports.updateMenuItem = async (req, res) => {
     res.status(400).json({ message: 'Error updating menu item', error: error.message });
   }
 };
-
-// Delete a menu item
 exports.deleteMenuItem = async (req, res) => {
   try {
     const menuItem = await Menu.findById(req.params.id);
@@ -373,8 +363,6 @@ exports.deleteMenuItem = async (req, res) => {
     res.status(500).json({ message: 'Error deleting menu item', error: error.message });
   }
 };
-
-// Get menu items by category
 exports.getMenuItemsByCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
