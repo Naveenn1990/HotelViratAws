@@ -175,6 +175,8 @@ exports.createGuestOrder = async (req, res) => {
       totalAmount,
       grandTotal,
       paymentMethod,
+      paymentStatus,
+      status,
       orderTime,
       notes,
     } = req.body
@@ -285,10 +287,10 @@ exports.createGuestOrder = async (req, res) => {
       totalAmount: Number.parseFloat(totalAmount) || 0,
       grandTotal: Number.parseFloat(grandTotal) || 0,
       paymentMethod: paymentMethod || "cash",
-      paymentStatus: "pending", // Guest orders start as pending payment
+      paymentStatus: paymentStatus || "pending", // Use provided paymentStatus or default to pending
       orderTime: new Date(orderTime) || new Date(),
       notes: notes || `Guest order from Table ${tableNumber}`,
-      status: "pending",
+      status: status || "pending", // Use provided status or default to pending
       isGuestOrder: true, // Mark as guest order
     })
 
