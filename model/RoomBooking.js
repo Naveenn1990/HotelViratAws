@@ -56,10 +56,19 @@ const roomBookingSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  gstOption: {
+    type: String,
+    enum: ['withoutGST', 'withGST', 'withIGST'],
+    default: 'withGST',
+  },
   gstType: {
     type: String,
     enum: ['none', 'gst', 'igst'], // none = without GST, gst = CGST+SGST (within state), igst = IGST (out of state)
     default: 'none',
+  },
+  gstAmount: {
+    type: Number,
+    default: 0,
   },
   cgst: {
     type: Number,

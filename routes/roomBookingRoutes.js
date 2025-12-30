@@ -6,6 +6,7 @@ const {
   getBookings,
   getBookingById,
   getRoomActiveBooking,
+  getRoomBookedTimeSlots,
   updateBookingStatus,
   updatePayment,
   cancelBooking,
@@ -20,6 +21,7 @@ router.route("/walk-in").post(createWalkInBooking);
 router.route("/payment-summary").get(getPaymentSummary);
 router.route("/cancellation-requests").get(getCancellationRequests);
 router.route("/room/:roomId/active").get(getRoomActiveBooking);
+router.route("/slots/:roomId").get(getRoomBookedTimeSlots);
 router.route("/:id").get(getBookingById);
 router.route("/:id/status").put(updateBookingStatus);
 router.route("/:id/payment").put(updatePayment);

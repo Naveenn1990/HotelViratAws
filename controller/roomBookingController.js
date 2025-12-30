@@ -59,8 +59,8 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
 
     const createdBooking = await booking.save();
 
-    // Update room availability
-    await Room.findByIdAndUpdate(roomId, { isAvailable: false });
+    // With time slot system, rooms remain available for other time slots
+    // Don't automatically set room as unavailable
 
     const populatedBooking = await RoomBooking.findById(createdBooking._id)
       .populate('roomId')
@@ -76,23 +76,67 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
 // Create booking
 const createBooking = asyncHandler(async (req, res) => {
   try {
-    const { roomId, branchId, userId, userName, userPhone, userEmail, checkInDate, checkOutDate, checkInTime, checkOutTime, totalPrice, nights, baseAmount, cgst, sgst } = req.body;
+    const { 
+      roomId, branchId, userId, userName, userPhone, userEmail, guestGstNumber,
+      checkInDate, checkOutDate, checkInTime, checkOutTime, 
+      gstOption, totalPrice, nights, baseAmount, cgst, sgst, igst, gstAmount 
+    } = req.body;
 
     if (!roomId || !branchId || !userId || !userName || !checkInDate || !checkOutDate) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Check if room is available for the dates
-    const existingBooking = await RoomBooking.findOne({
+    // Check for time slot conflicts instead of full date conflicts
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+    const checkInHour = parseInt(checkInTime?.split(':')[0] || '12');
+    const checkOutHour = parseInt(checkOutTime?.split(':')[0] || '11');
+
+    // Find overlapping bookings
+    const conflictingBookings = await RoomBooking.find({
       roomId,
       status: { $nin: ['cancelled', 'checked-out'] },
       $or: [
-        { checkInDate: { $lte: new Date(checkOutDate) }, checkOutDate: { $gte: new Date(checkInDate) } }
+        // Same day bookings with time conflicts
+        {
+          checkInDate: { $eq: checkIn },
+          checkOutDate: { $eq: checkOut },
+          $or: [
+            // New booking starts during existing booking
+            { 
+              checkInTime: { $lte: checkInTime },
+              checkOutTime: { $gt: checkInTime }
+            },
+            // New booking ends during existing booking
+            { 
+              checkInTime: { $lt: checkOutTime },
+              checkOutTime: { $gte: checkOutTime }
+            },
+            // Existing booking is within new booking
+            { 
+              checkInTime: { $gte: checkInTime },
+              checkOutTime: { $lte: checkOutTime }
+            }
+          ]
+        },
+        // Multi-day bookings
+        { 
+          checkInDate: { $lt: checkOut }, 
+          checkOutDate: { $gt: checkIn }
+        }
       ]
     });
 
-    if (existingBooking) {
-      return res.status(400).json({ message: "Room is already booked for these dates" });
+    if (conflictingBookings.length > 0) {
+      return res.status(400).json({ 
+        message: "Room has conflicting bookings for the selected time slots",
+        conflicts: conflictingBookings.map(b => ({
+          checkInDate: b.checkInDate,
+          checkOutDate: b.checkOutDate,
+          checkInTime: b.checkInTime,
+          checkOutTime: b.checkOutTime
+        }))
+      });
     }
 
     const booking = new RoomBooking({
@@ -102,22 +146,26 @@ const createBooking = asyncHandler(async (req, res) => {
       userName,
       userPhone,
       userEmail,
-      checkInDate: new Date(checkInDate),
-      checkOutDate: new Date(checkOutDate),
+      guestGstNumber: guestGstNumber || '',
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
       checkInTime: checkInTime || '12:00',
       checkOutTime: checkOutTime || '11:00',
+      gstOption: gstOption || 'withGST',
       nights: nights || 1,
       baseAmount: baseAmount || totalPrice,
       cgst: cgst || 0,
       sgst: sgst || 0,
+      igst: igst || 0,
+      gstAmount: gstAmount || 0,
       totalPrice,
       status: 'confirmed',
     });
 
     const createdBooking = await booking.save();
 
-    // Update room availability
-    await Room.findByIdAndUpdate(roomId, { isAvailable: false });
+    // Don't automatically set room as unavailable - it can still be booked for other time slots
+    // Room availability is now managed by time slots
 
     const populatedBooking = await RoomBooking.findById(createdBooking._id)
       .populate('roomId')
@@ -194,10 +242,9 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
     booking.status = status;
     await booking.save();
 
-    // If checked-out or cancelled, make room available again
-    if (status === 'checked-out' || status === 'cancelled') {
-      await Room.findByIdAndUpdate(booking.roomId, { isAvailable: true });
-    }
+    // With time slot system, we don't automatically change room availability
+    // Rooms remain available for other time slots even when some slots are booked
+    // Only set room as unavailable if it's a maintenance/system issue, not booking-related
 
     res.json(booking);
   } catch (error) {
@@ -267,8 +314,8 @@ const cancelBooking = asyncHandler(async (req, res) => {
     booking.status = 'cancelled';
     await booking.save();
 
-    // Make room available again
-    await Room.findByIdAndUpdate(booking.roomId, { isAvailable: true });
+    // With time slot system, rooms remain available for other time slots
+    // No need to change room availability status
 
     res.json({ message: "Booking cancelled successfully" });
   } catch (error) {
@@ -324,8 +371,8 @@ const approveCancellation = asyncHandler(async (req, res) => {
     booking.status = 'cancelled';
     await booking.save();
 
-    // Make room available again
-    await Room.findByIdAndUpdate(booking.roomId, { isAvailable: true });
+    // With time slot system, rooms remain available for other time slots
+    // No need to change room availability status
 
     res.json({ 
       message: "Cancellation approved successfully",
@@ -421,12 +468,103 @@ const getPaymentSummary = asyncHandler(async (req, res) => {
   }
 });
 
+// Get booked time slots for a room on a specific date
+const getRoomBookedTimeSlots = asyncHandler(async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ message: "Date parameter is required" });
+    }
+
+    // Parse the date and create start/end of day
+    const targetDate = new Date(date);
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Find all bookings for this room that overlap with the target date
+    const bookings = await RoomBooking.find({
+      roomId,
+      status: { $nin: ['cancelled', 'checked-out'] },
+      $or: [
+        // Booking starts on this date
+        { 
+          checkInDate: { $gte: startOfDay, $lte: endOfDay }
+        },
+        // Booking ends on this date
+        { 
+          checkOutDate: { $gte: startOfDay, $lte: endOfDay }
+        },
+        // Booking spans across this date
+        { 
+          checkInDate: { $lt: startOfDay },
+          checkOutDate: { $gt: endOfDay }
+        }
+      ]
+    });
+
+    // Generate booked time slots
+    const bookedSlots = [];
+    
+    bookings.forEach(booking => {
+      const checkInDate = new Date(booking.checkInDate);
+      const checkOutDate = new Date(booking.checkOutDate);
+      
+      // If booking starts on target date, block from check-in time onwards
+      if (checkInDate.toDateString() === targetDate.toDateString()) {
+        const checkInHour = parseInt(booking.checkInTime?.split(':')[0] || '12');
+        for (let hour = checkInHour; hour < 24; hour++) {
+          const timeSlot = `${hour.toString().padStart(2, '0')}:00`;
+          if (!bookedSlots.includes(timeSlot)) {
+            bookedSlots.push(timeSlot);
+          }
+        }
+      }
+      
+      // If booking ends on target date, block until check-out time
+      if (checkOutDate.toDateString() === targetDate.toDateString()) {
+        const checkOutHour = parseInt(booking.checkOutTime?.split(':')[0] || '11');
+        for (let hour = 0; hour <= checkOutHour; hour++) {
+          const timeSlot = `${hour.toString().padStart(2, '0')}:00`;
+          if (!bookedSlots.includes(timeSlot)) {
+            bookedSlots.push(timeSlot);
+          }
+        }
+      }
+      
+      // If booking spans across this date (multi-day booking), block entire day
+      if (checkInDate < startOfDay && checkOutDate > endOfDay) {
+        for (let hour = 0; hour < 24; hour++) {
+          const timeSlot = `${hour.toString().padStart(2, '0')}:00`;
+          if (!bookedSlots.includes(timeSlot)) {
+            bookedSlots.push(timeSlot);
+          }
+        }
+      }
+    });
+
+    res.json({
+      roomId,
+      date,
+      bookedSlots: bookedSlots.sort(),
+      availableSlots: 24 - bookedSlots.length
+    });
+  } catch (error) {
+    console.error("Error getting booked time slots:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createBooking,
   createWalkInBooking,
   getBookings,
   getBookingById,
   getRoomActiveBooking,
+  getRoomBookedTimeSlots,
   updateBookingStatus,
   updatePayment,
   cancelBooking,

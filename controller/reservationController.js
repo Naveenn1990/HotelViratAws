@@ -9,6 +9,7 @@ const createReservation = async (req, res) => {
 
     const {
       tableId,
+      branchId: providedBranchId,
       customerId,
       customerName,
       customerPhone,
@@ -25,9 +26,19 @@ const createReservation = async (req, res) => {
     }
 
     
-    const table = await Table.findById(tableId)
+    const table = await Table.findById(tableId).populate('branchId')
     if (!table) {
       return res.status(404).json({ error: "Table not found" })
+    }
+
+    // Get branchId from table if not provided or if mismatch
+    const tableBranchId = table.branchId._id || table.branchId
+    let branchId = providedBranchId || tableBranchId.toString()
+    
+    if (providedBranchId && providedBranchId !== tableBranchId.toString()) {
+      console.log(`Branch mismatch: provided ${providedBranchId}, table has ${tableBranchId}`)
+      // Use the table's branchId instead
+      branchId = tableBranchId.toString()
     }
 
     // Create or find customer
@@ -51,6 +62,7 @@ const createReservation = async (req, res) => {
     // Create reservation
     const reservation = new Reservation({
       tableId,
+      branchId,
       customerId: customer._id,
       customerName,
       customerPhone,
@@ -70,7 +82,15 @@ const createReservation = async (req, res) => {
 
     // Populate the response
     const populatedReservation = await Reservation.findById(createdReservation._id)
-      .populate("tableId", "number branchId")
+      .populate({
+        path: "tableId",
+        select: "number branchId",
+        populate: {
+          path: "branchId",
+          select: "name address"
+        }
+      })
+      .populate("branchId", "name address")
       .populate("customerId", "name mobileNumber email")
 
     res.status(201).json(populatedReservation)
@@ -100,12 +120,41 @@ const getReservations = async (req, res) => {
     }
 
     const reservations = await Reservation.find(query)
-      .populate("tableId", "number branchId")
+      .populate({
+        path: "tableId",
+        select: "number branchId",
+        populate: {
+          path: "branchId",
+          select: "name address"
+        }
+      })
+      .populate("branchId", "name address")
       .populate("customerId", "name mobileNumber email")
-      .sort({ reservationDate: 1, timeSlot: 1 })
+      .sort({ createdAt: -1 }) // Sort by creation date, newest first
 
-    console.log("Found reservations:", reservations.length)
-    res.json(reservations)
+    // Fix reservations that don't have branchId set
+    const fixedReservations = []
+    for (const reservation of reservations) {
+      let reservationObj = reservation.toObject()
+      
+      // If reservation doesn't have branchId but table has branchId, update it
+      if (!reservationObj.branchId && reservationObj.tableId && reservationObj.tableId.branchId) {
+        console.log(`Fixing reservation ${reservationObj._id} - adding branchId from table`)
+        
+        // Update the reservation in database
+        await Reservation.findByIdAndUpdate(reservationObj._id, {
+          branchId: reservationObj.tableId.branchId._id || reservationObj.tableId.branchId
+        })
+        
+        // Update the object for response
+        reservationObj.branchId = reservationObj.tableId.branchId
+      }
+      
+      fixedReservations.push(reservationObj)
+    }
+
+    console.log("Found reservations:", fixedReservations.length)
+    res.json(fixedReservations)
   } catch (err) {
     console.error("Error fetching reservations:", err)
     res.status(500).json({ error: err.message })
@@ -116,7 +165,15 @@ const getReservations = async (req, res) => {
 const getReservationById = async (req, res) => {
   try {
     const reservation = await Reservation.findById(req.params.id)
-      .populate("tableId", "number branchId")
+      .populate({
+        path: "tableId",
+        select: "number branchId",
+        populate: {
+          path: "branchId",
+          select: "name address"
+        }
+      })
+      .populate("branchId", "name address")
       .populate("customerId", "name mobileNumber email")
 
     if (!reservation) {
@@ -143,7 +200,15 @@ const updateReservation = async (req, res) => {
       new: true,
       runValidators: true,
     })
-      .populate("tableId", "number branchId")
+      .populate({
+        path: "tableId",
+        select: "number branchId",
+        populate: {
+          path: "branchId",
+          select: "name address"
+        }
+      })
+      .populate("branchId", "name address")
       .populate("customerId", "name mobileNumber email")
 
     res.json(updatedReservation)
@@ -197,7 +262,14 @@ const cancelReservation = async (req, res) => {
       { status: "cancelled" },
       { new: true },
     )
-      .populate("tableId", "number branchId")
+      .populate({
+        path: "tableId",
+        select: "number branchId",
+        populate: {
+          path: "branchId",
+          select: "name address"
+        }
+      })
       .populate("customerId", "name mobileNumber email")
 
     // Check if there are other active reservations for this table

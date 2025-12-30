@@ -7,6 +7,11 @@ const reservationSchema = new mongoose.Schema(
       ref: "Table",
       required: true,
     },
+    branchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      required: false, // Make it optional for backward compatibility
+    },
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
