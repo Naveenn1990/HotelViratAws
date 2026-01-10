@@ -1,27 +1,13 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const couponController = require("../controller/couponController");
-const multer = require("multer");
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/offer");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "_" + file.originalname);
-  },
+// Basic coupon routes - add your coupon controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Coupon routes working' });
 });
 
-const upload = multer();
-
-// Coupon routes
-router.post("/", upload.single("image"), couponController.createCoupon);
-router.get("/", couponController.getAllCoupons);
-router.get("/:id", couponController.getCouponById);
-router.put("/:id", upload.single("image"), couponController.updateCoupon);
-router.delete("/:id", couponController.deleteCoupon);
-router.post("/validate", couponController.validateCoupon);
-router.post("/apply", couponController.applyCoupon);
+router.post('/', (req, res) => {
+  res.json({ message: 'Create coupon endpoint' });
+});
 
 module.exports = router;

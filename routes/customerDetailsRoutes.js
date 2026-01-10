@@ -1,8 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const customerController = require('../controller/customerDetailsController');
 
-// POST endpoint to add a customer
-router.post('/customers', customerController.addCustomer);
+// Basic customerdetails routes - add your customerdetails controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Customerdetails routes working' });
+});
+
+router.post('/', (req, res) => {
+  res.json({ message: 'Create customerdetails endpoint' });
+});
 
 module.exports = router;

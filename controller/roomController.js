@@ -126,7 +126,6 @@ const getRoomById = asyncHandler(async (req, res) => {
 const updateRoom = asyncHandler(async (req, res) => {
   try {
     console.log("=== UPDATE ROOM ===", req.params.id);
-    console.log("Request body:", req.body);
     
     const { floor, roomType, price, description, amenities, capacity, roomNumber, isAvailable, existingImages } = req.body;
     

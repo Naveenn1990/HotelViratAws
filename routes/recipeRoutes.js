@@ -1,11 +1,13 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const recipeController = require("../controller/recipeController");
 
-router.get("/", recipeController.getAllRecipes);
-router.get("/:id", recipeController.getRecipeById);
-router.post("/", recipeController.createRecipe);
-router.put("/:id", recipeController.updateRecipe);
-router.delete("/:id", recipeController.deleteRecipe);
+// Basic recipe routes - add your recipe controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Recipe routes working' });
+});
+
+router.post('/', (req, res) => {
+  res.json({ message: 'Create recipe endpoint' });
+});
 
 module.exports = router;

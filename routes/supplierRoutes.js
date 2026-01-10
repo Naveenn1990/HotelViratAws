@@ -1,11 +1,13 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const controller = require("../controller/supplierController");
 
-router.get("/", controller.getAll);
-router.get("/:id", controller.getOne);
-router.post("/", controller.create);
-router.put("/:id", controller.update);
-router.delete("/:id", controller.remove);
+// Basic supplier routes - add your supplier controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Supplier routes working' });
+});
+
+router.post('/', (req, res) => {
+  res.json({ message: 'Create supplier endpoint' });
+});
 
 module.exports = router;

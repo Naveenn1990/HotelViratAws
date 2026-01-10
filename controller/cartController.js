@@ -1,35 +1,25 @@
-const Cart = require("../model/cartModel");
-const Menu = require("../model/menuModel");
-const mongoose = require("mongoose");
+const Cart = require('../model/cartModel');
 
-// Get cart for a user and branch
-exports.getCart = async (req, res) => {
+// Get cart items for a user and branch
+exports.getCartItems = async (req, res) => {
   try {
     const { userId, branchId } = req.query;
-
+    
     if (!userId || !branchId) {
-      return res.status(400).json({ message: "User ID and Branch ID are required" });
+      return res.status(400).json({ message: 'userId and branchId are required' });
     }
-
-    // Validate ObjectIds
-    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(branchId)) {
-      return res.status(400).json({ message: "Invalid User ID or Branch ID format" });
-    }
-
-    let cart = await Cart.findOne({ userId, branchId }).populate("branchId", "name address");
-
+    
+    const cart = await Cart.findOne({ userId, branchId })
+      .populate('items.menuItemId', 'name price image');
+    
     if (!cart) {
-      cart = {
-        userId,
-        branchId,
-        items: [],
-        totalPrice: 0,
-      };
+      return res.status(200).json({ items: [] });
     }
-
+    
     res.status(200).json(cart);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching cart", error: error.message });
+    console.error('Error fetching cart:', error);
+    res.status(500).json({ message: 'Error fetching cart', error: error.message });
   }
 };
 
@@ -37,161 +27,81 @@ exports.getCart = async (req, res) => {
 exports.addToCart = async (req, res) => {
   try {
     const { userId, branchId, menuItemId, quantity, price } = req.body;
-
-    // Validate required fields
-    if (!userId || !branchId || !menuItemId) {
-      return res.status(400).json({ message: "User ID, Branch ID, and Menu Item ID are required" });
+    
+    if (!userId || !branchId || !menuItemId || !quantity) {
+      return res.status(400).json({ message: 'Missing required fields' });
     }
-
-    // Validate ObjectIds
-    if (
-      !mongoose.Types.ObjectId.isValid(userId) ||
-      !mongoose.Types.ObjectId.isValid(branchId) ||
-      !mongoose.Types.ObjectId.isValid(menuItemId)
-    ) {
-      return res.status(400).json({ message: "Invalid ID format" });
-    }
-
-    // Validate quantity
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      return res.status(400).json({ message: "Quantity must be a positive integer" });
-    }
-
-    // Find the menu item to get its details
-    const menuItem = await Menu.findById(menuItemId);
-    if (!menuItem) {
-      return res.status(404).json({ message: "Menu item not found" });
-    }
-
-    // Validate that the menu item belongs to the specified branch
-    if (menuItem.branchId.toString() !== branchId.toString()) {
-      return res.status(400).json({ message: "Menu item does not belong to the specified branch" });
-    }
-
-    // Check if cart exists for this user and branch
+    
     let cart = await Cart.findOne({ userId, branchId });
-
+    
     if (!cart) {
-      // Create new cart if it doesn't exist
       cart = new Cart({
         userId,
         branchId,
-        items: [],
+        items: []
       });
     }
-
+    
     // Check if item already exists in cart
-    const itemIndex = cart.items.findIndex((item) => item.menuItemId.toString() === menuItemId.toString());
-
-    if (itemIndex > -1) {
-      // Update quantity if item exists
-      cart.items[itemIndex].quantity += quantity;
-      
-      // Update price if provided (in case subscription status changed)
-      if (price !== undefined && price !== null && typeof price === 'number' && !isNaN(price)) {
-        cart.items[itemIndex].price = price;
-        console.log('Updated existing item price to:', price);
+    const existingItemIndex = cart.items.findIndex(
+      item => item.menuItemId.toString() === menuItemId
+    );
+    
+    if (existingItemIndex > -1) {
+      // Update quantity
+      cart.items[existingItemIndex].quantity += quantity;
+      if (price) {
+        cart.items[existingItemIndex].price = price;
       }
     } else {
-      // Use price from request if provided, otherwise fallback to menu item price
-      let itemPrice = price;
-      
-      if (itemPrice === undefined || itemPrice === null) {
-        // Fallback to menu item price
-        itemPrice = menuItem.price;
-        console.log('Menu item price field:', menuItem.price);
-        console.log('Menu item prices object:', menuItem.prices);
-        
-        if ((itemPrice === undefined || itemPrice === null) && menuItem.prices && typeof menuItem.prices === 'object') {
-          const priceValues = Object.values(menuItem.prices);
-          console.log('Price values from prices object:', priceValues);
-          itemPrice = priceValues.length > 0 ? Number(priceValues[0]) : 0;
-        }
-      }
-      
-      // Ensure price is a valid number, default to 1 if still invalid (to pass validation)
-      const finalPrice = (typeof itemPrice === 'number' && !isNaN(itemPrice)) ? itemPrice : 1;
-      console.log('Final price being saved:', finalPrice);
-      
-      // Add new item to cart
+      // Add new item
       cart.items.push({
         menuItemId,
         quantity,
-        price: finalPrice,
-        name: menuItem.name || menuItem.itemName || 'Unknown Item',
-        image: menuItem.image || null,
+        price: price || 0
       });
     }
-
+    
     await cart.save();
-    cart = await cart.populate("branchId", "name address");
-    res.status(200).json({ message: "Item added to cart", cart });
+    
+    res.status(200).json({ message: 'Item added to cart', cart });
   } catch (error) {
-    res.status(500).json({ message: "Error adding item to cart", error: error.message });
+    console.error('Error adding to cart:', error);
+    res.status(500).json({ message: 'Error adding to cart', error: error.message });
   }
 };
 
-// Update cart item quantity
+// Update cart item
 exports.updateCartItem = async (req, res) => {
   try {
     const { userId, branchId, menuItemId, quantity } = req.body;
-
-    // Validate required fields
-    if (!userId || !branchId || !menuItemId) {
-      return res.status(400).json({ message: "User ID, Branch ID, and Menu Item ID are required" });
-    }
-
-    // Validate ObjectIds
-    if (
-      !mongoose.Types.ObjectId.isValid(userId) ||
-      !mongoose.Types.ObjectId.isValid(branchId) ||
-      !mongoose.Types.ObjectId.isValid(menuItemId)
-    ) {
-      return res.status(400).json({ message: "Invalid ID format" });
-    }
-
-    // Validate quantity
-    if (!Number.isInteger(quantity) || quantity < 0) {
-      return res.status(400).json({ message: "Quantity must be a non-negative integer" });
-    }
-
-    // Find the cart
-    let cart = await Cart.findOne({ userId, branchId });
+    
+    const cart = await Cart.findOne({ userId, branchId });
+    
     if (!cart) {
-      return res.status(404).json({ message: "Cart not found" });
+      return res.status(404).json({ message: 'Cart not found' });
     }
-
-    // Find the menu item to validate branch
-    const menuItem = await Menu.findById(menuItemId);
-    if (!menuItem) {
-      return res.status(404).json({ message: "Menu item not found" });
-    }
-
-    // Validate that the menu item belongs to the specified branch
-    if (menuItem.branchId.toString() !== branchId.toString()) {
-      return res.status(400).json({ message: "Menu item does not belong to the specified branch" });
-    }
-
-    // Find the item in the cart
-    const itemIndex = cart.items.findIndex((item) => item.menuItemId.toString() === menuItemId.toString());
-
+    
+    const itemIndex = cart.items.findIndex(
+      item => item.menuItemId.toString() === menuItemId
+    );
+    
     if (itemIndex === -1) {
-      return res.status(404).json({ message: "Item not found in cart" });
+      return res.status(404).json({ message: 'Item not found in cart' });
     }
-
-    if (quantity === 0) {
-      // Remove item if quantity is 0
+    
+    if (quantity <= 0) {
       cart.items.splice(itemIndex, 1);
     } else {
-      // Update quantity
       cart.items[itemIndex].quantity = quantity;
     }
-
+    
     await cart.save();
-    cart = await cart.populate("branchId", "name address");
-    res.status(200).json({ message: "Cart updated", cart });
+    
+    res.status(200).json({ message: 'Cart updated', cart });
   } catch (error) {
-    res.status(500).json({ message: "Error updating cart", error: error.message });
+    console.error('Error updating cart:', error);
+    res.status(500).json({ message: 'Error updating cart', error: error.message });
   }
 };
 
@@ -199,83 +109,36 @@ exports.updateCartItem = async (req, res) => {
 exports.removeFromCart = async (req, res) => {
   try {
     const { userId, branchId, menuItemId } = req.query;
-
-    // Validate required fields
-    if (!userId || !branchId || !menuItemId) {
-      return res.status(400).json({ message: "User ID, Branch ID, and Menu Item ID are required" });
-    }
-
-    // Validate ObjectIds
-    if (
-      !mongoose.Types.ObjectId.isValid(userId) ||
-      !mongoose.Types.ObjectId.isValid(branchId) ||
-      !mongoose.Types.ObjectId.isValid(menuItemId)
-    ) {
-      return res.status(400).json({ message: "Invalid ID format" });
-    }
-
-    // Find the menu item to validate branch
-    const menuItem = await Menu.findById(menuItemId);
-    if (!menuItem) {
-      return res.status(404).json({ message: "Menu item not found" });
-    }
-
-    // Validate that the menu item belongs to the specified branch
-    if (menuItem.branchId.toString() !== branchId.toString()) {
-      return res.status(400).json({ message: "Menu item does not belong to the specified branch" });
-    }
-
-    // Find the cart
+    
     const cart = await Cart.findOne({ userId, branchId });
+    
     if (!cart) {
-      return res.status(404).json({ message: "Cart not found" });
+      return res.status(404).json({ message: 'Cart not found' });
     }
-
-    // Find the item in the cart
-    const itemIndex = cart.items.findIndex((item) => item.menuItemId.toString() === menuItemId.toString());
-
-    if (itemIndex === -1) {
-      return res.status(404).json({ message: "Item not found in cart" });
-    }
-
-    // Remove item from cart
-    cart.items.splice(itemIndex, 1);
+    
+    cart.items = cart.items.filter(
+      item => item.menuItemId.toString() !== menuItemId
+    );
+    
     await cart.save();
-
-    // Populate branch details
-    await cart.populate("branchId", "name address");
-    res.status(200).json({ message: "Item removed from cart", cart });
+    
+    res.status(200).json({ message: 'Item removed from cart', cart });
   } catch (error) {
-    res.status(500).json({ message: "Error removing item from cart", error: error.message });
+    console.error('Error removing from cart:', error);
+    res.status(500).json({ message: 'Error removing from cart', error: error.message });
   }
 };
 
 // Clear cart
 exports.clearCart = async (req, res) => {
   try {
-    const { userId, branchId } = req.query;
-
-    // Validate required fields
-    if (!userId || !branchId) {
-      return res.status(400).json({ message: "User ID and Branch ID are required" });
-    }
-
-    // Validate ObjectIds
-    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(branchId)) {
-      return res.status(400).json({ message: "Invalid User ID or Branch ID format" });
-    }
-
-    const cart = await Cart.findOne({ userId, branchId });
-    if (!cart) {
-      return res.status(404).json({ message: "Cart not found" });
-    }
-
-    cart.items = [];
-    await cart.save();
-
-    await cart.populate("branchId", "name address");
-    res.status(200).json({ message: "Cart cleared", cart });
+    const { userId, branchId } = req.body;
+    
+    await Cart.findOneAndDelete({ userId, branchId });
+    
+    res.status(200).json({ message: 'Cart cleared' });
   } catch (error) {
-    res.status(500).json({ message: "Error clearing cart", error: error.message });
+    console.error('Error clearing cart:', error);
+    res.status(500).json({ message: 'Error clearing cart', error: error.message });
   }
 };

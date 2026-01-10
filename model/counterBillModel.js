@@ -13,8 +13,7 @@ const counterBillSchema = new mongoose.Schema({
     unique: true,
   },
   invoice: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "CounterInvoice",
+    type: mongoose.Schema.Types.Mixed, // Allow both ObjectId and String
     required: [true, "Invoice is required"],
   },
   branch: {

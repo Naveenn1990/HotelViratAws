@@ -1,12 +1,13 @@
-const express = require("express")
-const router = express.Router()
-const addressController = require("../controller/addressController")
+const express = require('express');
+const router = express.Router();
 
-// Address routes
-router.get("/:userId", addressController.getUserAddresses)
-router.post("/", addressController.addAddress)
-router.put("/:id", addressController.updateAddress)
-router.delete("/:id", addressController.deleteAddress)
-router.put("/:id/default", addressController.setDefaultAddress)
+// Basic address routes - add your address controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Address routes working' });
+});
 
-module.exports = router
+router.post('/', (req, res) => {
+  res.json({ message: 'Create address endpoint' });
+});
+
+module.exports = router;

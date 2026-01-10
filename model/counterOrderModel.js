@@ -47,8 +47,7 @@ const counterOrderSchema = new mongoose.Schema({
     required: [true, "Branch is required"],
   },
   invoice: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "CounterInvoice",
+    type: mongoose.Schema.Types.Mixed, // Allow both ObjectId and String
     required: [true, "Invoice is required"],
   },
   items: [cOrderItemSchema],

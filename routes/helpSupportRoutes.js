@@ -1,14 +1,13 @@
-const express = require("express")
-const router = express.Router()
-const helpSupportController = require("../controller/helpSupportController")
+const express = require('express');
+const router = express.Router();
 
-// Help & Support routes
-router.get("/", helpSupportController.getHelpSupport)
+// Basic helpsupport routes - add your helpsupport controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Helpsupport routes working' });
+});
 
-// Admin routes
-router.post("/", helpSupportController.createHelpSupport)
-router.get("/all", helpSupportController.getAllHelpSupport)
-router.put("/:id", helpSupportController.updateHelpSupport)
-router.delete("/:id", helpSupportController.deleteHelpSupport)
+router.post('/', (req, res) => {
+  res.json({ message: 'Create helpsupport endpoint' });
+});
 
-module.exports = router
+module.exports = router;

@@ -1,32 +1,22 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const {
-  createBooking,
-  createWalkInBooking,
-  getBookings,
-  getBookingById,
-  getRoomActiveBooking,
-  getRoomBookedTimeSlots,
-  updateBookingStatus,
-  updatePayment,
-  cancelBooking,
-  requestCancellation,
-  approveCancellation,
-  getCancellationRequests,
-  getPaymentSummary,
-} = require("../controller/roomBookingController");
+const roomBookingController = require('../controller/roomBookingController');
 
-router.route("/").post(createBooking).get(getBookings);
-router.route("/walk-in").post(createWalkInBooking);
-router.route("/payment-summary").get(getPaymentSummary);
-router.route("/cancellation-requests").get(getCancellationRequests);
-router.route("/room/:roomId/active").get(getRoomActiveBooking);
-router.route("/slots/:roomId").get(getRoomBookedTimeSlots);
-router.route("/:id").get(getBookingById);
-router.route("/:id/status").put(updateBookingStatus);
-router.route("/:id/payment").put(updatePayment);
-router.route("/:id/cancel").put(cancelBooking);
-router.route("/:id/request-cancel").put(requestCancellation);
-router.route("/:id/approve-cancel").put(approveCancellation);
+// Room booking CRUD routes
+router.post('/', roomBookingController.createBooking);
+router.post('/walk-in', roomBookingController.createWalkInBooking);
+router.get('/', roomBookingController.getBookings);
+router.get('/payment-summary', roomBookingController.getPaymentSummary);
+router.get('/cancellation-requests', roomBookingController.getCancellationRequests);
+router.get('/slots/:roomId', roomBookingController.getRoomBookedTimeSlots);
+router.get('/:id', roomBookingController.getBookingById);
+router.get('/room/:roomId/active', roomBookingController.getRoomActiveBooking);
+
+// Update routes
+router.put('/:id/status', roomBookingController.updateBookingStatus);
+router.put('/:id/payment', roomBookingController.updatePayment);
+router.put('/:id/cancel', roomBookingController.cancelBooking);
+router.put('/:id/request-cancel', roomBookingController.requestCancellation);
+router.put('/:id/approve-cancel', roomBookingController.approveCancellation);
 
 module.exports = router;

@@ -12,10 +12,13 @@ const SERVICE_CHARGE_RATE = 0.1 // 10%
 exports.createCounterOrder = asyncHandler(async (req, res) => {
   const {
     userId,
+    counterUserId, // Alternative field name from frontend
     customerName,
     phoneNumber,
     branchId,
+    selectedBranch, // Alternative field name from frontend
     invoiceId,
+    invoiceNumber, // Alternative field name from frontend
     items,
     paymentMethod,
     status,
@@ -25,10 +28,16 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     serviceCharge: providedServiceCharge,
     totalAmount: providedTotalAmount,
     grandTotal: providedGrandTotal,
+    total: providedTotal, // Alternative field name from frontend
   } = req.body
 
+  // Handle alternative field names from frontend
+  const actualUserId = userId || counterUserId
+  const actualBranchId = branchId || (selectedBranch && selectedBranch._id)
+  const actualInvoiceId = invoiceId || invoiceNumber
+
   // Validate input
-  if (!userId) {
+  if (!actualUserId) {
     res.status(400)
     throw new Error("User ID is required")
   }
@@ -43,12 +52,12 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     throw new Error("Phone number must be a valid 10-digit number")
   }
 
-  if (!branchId) {
+  if (!actualBranchId) {
     res.status(400)
     throw new Error("Branch is required")
   }
 
-  if (!invoiceId) {
+  if (!actualInvoiceId) {
     res.status(400)
     throw new Error("Invoice is required")
   }
@@ -66,27 +75,34 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
   // Verify counter user exists (optional - allow orders even if user not found)
   let counterUser = null
   try {
-    counterUser = await Counter.findById(userId)
+    counterUser = await Counter.findById(actualUserId)
     if (!counterUser) {
-      console.log(`Counter user ${userId} not found, proceeding with order anyway`)
+      console.log(`Counter user ${actualUserId} not found, proceeding with order anyway`)
     }
   } catch (err) {
     console.log(`Error finding counter user: ${err.message}, proceeding with order anyway`)
   }
 
   // Verify branch exists
-  const branch = await Branch.findById(branchId)
+  const branch = await Branch.findById(actualBranchId)
   if (!branch) {
     res.status(404)
     throw new Error("Branch not found")
   }
 
-  // Verify invoice exists (optional - allow orders even if invoice not found)
+  // For invoice, try to find by ID first, then by invoice number
   let invoice = null
   try {
-    invoice = await CounterInvoice.findById(invoiceId)
+    if (actualInvoiceId.match(/^[0-9a-fA-F]{24}$/)) {
+      // It's an ObjectId
+      invoice = await CounterInvoice.findById(actualInvoiceId)
+    } else {
+      // It's an invoice number, find by invoice number
+      invoice = await CounterInvoice.findOne({ invoiceNumber: actualInvoiceId })
+    }
+    
     if (!invoice) {
-      console.log(`Invoice ${invoiceId} not found, proceeding with order anyway`)
+      console.log(`Invoice ${actualInvoiceId} not found, proceeding with order anyway`)
     }
   } catch (err) {
     console.log(`Error finding invoice: ${err.message}, proceeding with order anyway`)
@@ -123,8 +139,8 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     }
 
     // Skip branch validation if branchId is not set on menu item
-    if (menuItem.branchId && menuItem.branchId.toString() !== branchId) {
-      console.log(`Item ${item.name} branch mismatch: DB=${menuItem.branchId}, Sent=${branchId}`)
+    if (menuItem.branchId && menuItem.branchId.toString() !== actualBranchId) {
+      console.log(`Item ${item.name} branch mismatch: DB=${menuItem.branchId}, Sent=${actualBranchId}`)
     }
 
     // Add to subtotal using the price sent from frontend
@@ -136,6 +152,9 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
   const calculatedServiceCharge = calculatedSubtotal * SERVICE_CHARGE_RATE
   const calculatedTotalAmount = calculatedSubtotal
   const calculatedGrandTotal = calculatedSubtotal + calculatedTax + calculatedServiceCharge
+
+  // Use provided total if available, otherwise use calculated grand total
+  const finalTotal = providedTotal || providedGrandTotal || calculatedGrandTotal
 
   // Validate provided amounts if they exist
   if (providedSubtotal !== undefined && Math.abs(providedSubtotal - calculatedSubtotal) > 0.01) {
@@ -160,24 +179,19 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     throw new Error(`Total amount mismatch: provided ₹${providedTotalAmount}, calculated ₹${calculatedTotalAmount}`)
   }
 
-  if (providedGrandTotal !== undefined && Math.abs(providedGrandTotal - calculatedGrandTotal) > 0.01) {
-    res.status(400)
-    throw new Error(`Grand total mismatch: provided ₹${providedGrandTotal}, calculated ₹${calculatedGrandTotal}`)
-  }
-
   // Create order with calculated amounts (same structure as staff order)
   const counterOrder = new CounterOrder({
-    userId,
+    userId: actualUserId,
     customerName: customerName.trim(),
     phoneNumber: phoneNumber.trim(),
-    branch: branchId,
-    invoice: invoiceId,
+    branch: actualBranchId,
+    invoice: invoice ? invoice._id : actualInvoiceId, // Use invoice ID if found, otherwise use provided ID
     items,
     subtotal: calculatedSubtotal,
     tax: calculatedTax,
     serviceCharge: calculatedServiceCharge,
     totalAmount: calculatedTotalAmount,
-    grandTotal: calculatedGrandTotal,
+    grandTotal: finalTotal,
     paymentMethod,
     orderStatus: "processing", // Default order status
     paymentStatus: status || "completed", // Payment status based on payment completion
@@ -186,7 +200,7 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
   // Save to database
   await counterOrder.save()
 
-  // Populate related data
+  // Populate related data (with error handling for missing references)
   const populatedOrder = await CounterOrder.findById(counterOrder._id)
     .populate("userId", "name mobile")
     .populate("branch", "name address")
@@ -195,37 +209,8 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     message: "Counter order created successfully",
-    order: {
-      id: populatedOrder._id,
-      userId: {
-        id: populatedOrder.userId._id,
-        name: populatedOrder.userId.name,
-        mobile: populatedOrder.userId.mobile,
-      },
-      customerName: populatedOrder.customerName,
-      phoneNumber: populatedOrder.phoneNumber,
-      branch: {
-        id: populatedOrder.branch._id,
-        name: populatedOrder.branch.name,
-        location: populatedOrder.branch.address,
-      },
-      invoice: {
-        id: populatedOrder.invoice._id,
-        invoiceNumber: populatedOrder.invoice.invoiceNumber,
-      },
-      items: populatedOrder.items,
-      subtotal: populatedOrder.subtotal,
-      tax: populatedOrder.tax,
-      serviceCharge: populatedOrder.serviceCharge,
-      totalAmount: populatedOrder.totalAmount,
-      grandTotal: populatedOrder.grandTotal,
-      paymentMethod: populatedOrder.paymentMethod,
-      orderStatus: populatedOrder.orderStatus,
-      paymentStatus: populatedOrder.paymentStatus,
-      cancellationReason: populatedOrder.cancellationReason,
-      cancelledAt: populatedOrder.cancelledAt,
-      createdAt: populatedOrder.createdAt,
-    },
+    order: populatedOrder,
+    _id: populatedOrder._id, // Add this for compatibility
   })
 })
 

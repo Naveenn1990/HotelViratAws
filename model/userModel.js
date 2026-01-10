@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema({
     match: [/\S+@\S+\.\S+/, 'Please enter a valid email address'],
     default: null,
   },
+  password: {
+    type: String,
+    default: null, // Optional for OTP-based auth
+  },
   image: {
     type: String,
     default: null,
@@ -33,6 +37,13 @@ const userSchema = new mongoose.Schema({
   },
 }, {
   timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Virtual for phone field (maps to mobile for backward compatibility)
+userSchema.virtual('phone').get(function() {
+  return this.mobile;
 });
 
 module.exports = mongoose.model('User', userSchema);

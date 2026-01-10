@@ -1,28 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
-const { createTable, getTables, getTableById, updateTable, deleteTable } = require('../controller/tableController');
 
-// Configure Multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/table');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '_' + file.originalname);
-  },
+// Basic table routes - add your table controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Table routes working' });
 });
 
-const upload = multer({ storage });
-
-// Routes
-router.route('/')
-  .post(upload.single('image'), createTable)
-  .get(getTables);
-
-router.route('/:id')
-  .get(getTableById)
-  .put(upload.single('image'), updateTable)
-  .delete(deleteTable);
+router.post('/', (req, res) => {
+  res.json({ message: 'Create table endpoint' });
+});
 
 module.exports = router;

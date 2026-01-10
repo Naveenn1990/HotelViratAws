@@ -24,12 +24,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 })); // Vite dev aur production
 // Define the rate limiter
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 500 : 10000, // Higher limit for development
-  message: "Too many requests from this IP, please try again after 15 minutes",
-});
-app.use(limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: process.env.NODE_ENV === 'production' ? 500 : 10000, // Higher limit for development
+//   message: "Too many requests from this IP, please try again after 15 minutes",
+// });
+// app.use(limiter);
 // Use morgan for logging
 app.use(morgan("dev"));
 // app.use(
@@ -129,6 +129,8 @@ const peopleSelectionRoutes = require("./routes/peopleSelectionRoutes");
 const staffOrderRoutes = require("./routes/staffOrderRoutes");
 const counterOrderRoutes = require("./routes/counterOrderRoutes");
 const counterBillRoutes = require("./routes/counterBillRoutes");
+const counterPaymentRoutes = require("./routes/counterPaymentRoutes");
+const thermalPrintRoutes = require("./routes/thermalPrintRoutes");
 const staffInvoiceRoutes = require("./routes/staffInvoiceRoutes");
 const recipeRoutes = require("./routes/recipeRoutes");
 const customerRoutes = require("./routes/customerRoutes");
@@ -205,6 +207,8 @@ app.use("/api/v1/hotel/people-selection", peopleSelectionRoutes);
 app.use("/api/v1/hotel/staff-order", staffOrderRoutes);
 app.use("/api/v1/hotel/counter-order", counterOrderRoutes);
 app.use("/api/v1/hotel/counter-bill", counterBillRoutes);
+app.use("/api/v1/hotel/counter-payment", counterPaymentRoutes);
+app.use("/api/v1/hotel/print-thermal", thermalPrintRoutes);
 app.use("/api/v1/hotel/staff-invoice", staffInvoiceRoutes);
 app.use("/api/v1/hotel/raw-materials", RawMaterial);
 app.use("/api/v1/hotel/recipes", recipeRoutes);

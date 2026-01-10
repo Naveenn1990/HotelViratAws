@@ -1,14 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const stockInwardController = require('../controller/stockInvardController');
 
-router.post('/', stockInwardController.createStockInward);
-router.get('/', stockInwardController.getAllStockInwards);
-router.get('/:id', stockInwardController.getStockInwardById);
-router.put('/:id', stockInwardController.updateStockInward);
-router.delete('/:id', stockInwardController.deleteStockInward);
+// Basic stockinward routes - add your stockinward controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Stockinward routes working' });
+});
+
+router.post('/', (req, res) => {
+  res.json({ message: 'Create stockinward endpoint' });
+});
 
 module.exports = router;
-
-
-

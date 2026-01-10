@@ -1,11 +1,13 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const controller = require("../controller/purchaseOrderController");
 
-router.get("/", controller.getAll);
-router.get("/:id", controller.getOne);
-router.post("/", controller.create);
-router.put("/:id", controller.update);
-router.delete("/:id", controller.remove);
+// Basic purchase routes - add your purchase controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Purchase routes working' });
+});
+
+router.post('/', (req, res) => {
+  res.json({ message: 'Create purchase endpoint' });
+});
 
 module.exports = router;

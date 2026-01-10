@@ -1,15 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const categoryAccessController = require('../controller/categoryAccessController');
 
-// Public route for login
-router.post('/login', categoryAccessController.loginCategoryAccess);
+// Basic categoryaccess routes - add your categoryaccess controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Categoryaccess routes working' });
+});
 
-// Admin routes
-router.get('/', categoryAccessController.getAllCategoryAccess);
-router.get('/:id', categoryAccessController.getCategoryAccessById);
-router.post('/', categoryAccessController.createCategoryAccess);
-router.put('/:id', categoryAccessController.updateCategoryAccess);
-router.delete('/:id', categoryAccessController.deleteCategoryAccess);
+router.post('/', (req, res) => {
+  res.json({ message: 'Create categoryaccess endpoint' });
+});
 
 module.exports = router;

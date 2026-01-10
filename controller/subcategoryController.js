@@ -3,16 +3,16 @@ const Subcategory = require('../model/subcategoryModel');
 // Get all subcategories
 exports.getAllSubcategories = async (req, res) => {
   try {
-    const { categoryId, branchId } = req.query;
-    const filter = {};
+    const { categoryId } = req.query;
     
-    if (categoryId) filter.categoryId = categoryId;
-    if (branchId) filter.branchId = branchId;
+    const filter = {};
+    if (categoryId) {
+      filter.categoryId = categoryId;
+    }
     
     const subcategories = await Subcategory.find(filter)
       .populate('categoryId', 'name')
-      .populate('branchId', 'name')
-      .sort({ name: 1 });
+      .sort({ createdAt: -1 });
     
     res.status(200).json(subcategories);
   } catch (error) {
@@ -25,8 +25,7 @@ exports.getAllSubcategories = async (req, res) => {
 exports.getSubcategoryById = async (req, res) => {
   try {
     const subcategory = await Subcategory.findById(req.params.id)
-      .populate('categoryId', 'name')
-      .populate('branchId', 'name');
+      .populate('categoryId', 'name');
     
     if (!subcategory) {
       return res.status(404).json({ message: 'Subcategory not found' });
@@ -42,53 +41,29 @@ exports.getSubcategoryById = async (req, res) => {
 // Create new subcategory
 exports.createSubcategory = async (req, res) => {
   try {
-    const { name, categoryId, branchId, description } = req.body;
+    const subcategoryData = req.body;
     
-    // Check if subcategory already exists
-    const existingSubcategory = await Subcategory.findOne({ 
-      name, 
-      categoryId, 
-      branchId 
-    });
-    
-    if (existingSubcategory) {
-      return res.status(400).json({ 
-        message: 'Subcategory with this name already exists in this category and branch' 
-      });
-    }
-    
-    const subcategory = new Subcategory({
-      name,
-      categoryId,
-      branchId,
-      description
-    });
-    
+    const subcategory = new Subcategory(subcategoryData);
     await subcategory.save();
     
-    const populatedSubcategory = await Subcategory.findById(subcategory._id)
-      .populate('categoryId', 'name')
-      .populate('branchId', 'name');
+    // Populate the category info before returning
+    await subcategory.populate('categoryId', 'name');
     
-    res.status(201).json(populatedSubcategory);
+    res.status(201).json(subcategory);
   } catch (error) {
     console.error('Error creating subcategory:', error);
-    res.status(500).json({ message: 'Error creating subcategory', error: error.message });
+    res.status(400).json({ message: 'Error creating subcategory', error: error.message });
   }
 };
 
 // Update subcategory
 exports.updateSubcategory = async (req, res) => {
   try {
-    const { name, description, isActive } = req.body;
-    
     const subcategory = await Subcategory.findByIdAndUpdate(
       req.params.id,
-      { name, description, isActive },
+      req.body,
       { new: true, runValidators: true }
-    )
-      .populate('categoryId', 'name')
-      .populate('branchId', 'name');
+    ).populate('categoryId', 'name');
     
     if (!subcategory) {
       return res.status(404).json({ message: 'Subcategory not found' });
@@ -97,7 +72,7 @@ exports.updateSubcategory = async (req, res) => {
     res.status(200).json(subcategory);
   } catch (error) {
     console.error('Error updating subcategory:', error);
-    res.status(500).json({ message: 'Error updating subcategory', error: error.message });
+    res.status(400).json({ message: 'Error updating subcategory', error: error.message });
   }
 };
 

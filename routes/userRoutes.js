@@ -1,32 +1,30 @@
 const express = require('express');
 const router = express.Router();
-
 const userController = require('../controller/userController');
-const multer = require("multer")
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, "uploads/profile")
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + "_" + file.originalname)
-    },
-})
+// Root route for user-auth (to handle GET /api/v1/hotel/user-auth/)
+router.get('/', (req, res) => {
+  res.status(200).json({ 
+    message: 'User Authentication API',
+    endpoints: {
+      'POST /register': 'Register new user',
+      'POST /login': 'Login user',
+      'GET /profile/:id': 'Get user profile',
+      'PUT /profile/:id': 'Update user profile',
+      'GET /all': 'Get all users (admin)'
+    }
+  });
+});
 
-const upload = multer()
+// User authentication routes
+router.post('/register', userController.registerUser);
+router.post('/login', userController.loginUser);
 
+// User profile routes
+router.get('/profile/:id', userController.getUserProfile);
+router.put('/profile/:id', userController.updateUserProfile);
 
-// OTP Routes
-router.post('/register/send-otp', userController.sendOtpForRegistration);
-router.post('/login/send-otp', userController.sendOtpForLogin);
-router.post('/verify-otp', upload.single('image'), userController.verifyOtp);
-router.post('/register/resend-otp', userController.resendOtpForRegistration);
-router.post('/login/resend-otp', userController.resendOtpForLogin);
-
-router.post('/', upload.single('image'), userController.createUser);
-router.get('/', userController.getAllUsers);
-router.get('/:id', userController.getUserById);
-router.put('/:id', upload.single('image'), userController.updateUser);
-router.delete('/:id', userController.deleteUser);
+// Admin routes
+router.get('/all', userController.getAllUsers);
 
 module.exports = router;

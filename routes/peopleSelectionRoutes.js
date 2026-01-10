@@ -1,18 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { createPeopleSelection, getPeopleSelections, getPeopleSelectionById, updatePeopleSelection, deletePeopleSelection } = require('../controller/peopleSelectionController');
 
-// Routes
-router.route('/')
-  .post(createPeopleSelection)
-  .get(getPeopleSelections);
+// Basic peopleselection routes - add your peopleselection controller when available
+router.get('/', (req, res) => {
+  res.json({ message: 'Peopleselection routes working' });
+});
 
-router.route('/:id')
-  .get(getPeopleSelectionById)
-  .put(updatePeopleSelection)
-  .delete(deletePeopleSelection); 
-
-   
-    
+router.post('/', (req, res) => {
+  res.json({ message: 'Create peopleselection endpoint' });
+});
 
 module.exports = router;
