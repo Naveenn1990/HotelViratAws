@@ -39,15 +39,7 @@ exports.createMenuItem = async (req, res) => {
       _id,
     } = req.body;
 
-    console.log("Received menu item data:", {
-      name,
-      itemName,
-      quantities,
-      prices,
-      menuTypes,
-      categoryId,
-      branchId,
-    });
+    // Parse JSON strings if needed
     console.log("req.file:", req.file);
     console.log("req.files:", req.files);
     console.log("Content-Type:", req.headers["content-type"]);
@@ -293,43 +285,6 @@ exports.updateMenuItem = async (req, res) => {
       subscription1MonthPrice,
     } = req.body;
 
-    console.log("Updating menu item with data:", {
-      name,
-      itemName,
-      quantities,
-      prices,
-      menuTypes,
-      categoryId,
-      branchId,
-    });
- console.log('🔍 ALL SUBSCRIPTION FIELDS RECEIVED:', { 
-  subscriptionEnabled, 
-  subscription3DaysDiscount, 
-  subscription1WeekDiscount, 
-  subscription1MonthDiscount,
-  subscription3DaysPrice,
-  subscription1WeekPrice,
-  subscription1MonthPrice
-});
-console.log('🔍 FULL REQUEST BODY:', req.body);
-console.log('Updating menu item with data:', { name, itemName, quantities, prices, menuTypes, categoryId, branchId });
-console.log('🔍 FULL REQUEST BODY:', req.body);
-console.log('Updating menu item with data:', { name, itemName, quantities, prices, menuTypes, categoryId, branchId });
-
-
-console.log('🔍 FULL REQ.BODY KEYS:', Object.keys(req.body));
-// ADD THIS NEW LOGGING CODE HERE:
-console.log('🔍 SUBSCRIPTION PRICE FIELDS RECEIVED:', {
-  subscription3DaysPrice: req.body.subscription3DaysPrice,
-  subscription1WeekPrice: req.body.subscription1WeekPrice,
-  subscription1MonthPrice: req.body.subscription1MonthPrice,
-  subscription3DaysDiscount: req.body.subscription3DaysDiscount,
-  subscription1WeekDiscount: req.body.subscription1WeekDiscount,
-  subscription1MonthDiscount: req.body.subscription1MonthDiscount
-});
-console.log('🔍 FULL REQ.BODY KEYS:', Object.keys(req.body));
-
-
     // Parse JSON strings if needed
     let parsedQuantities = quantities;
     if (typeof quantities === "string") {
@@ -444,13 +399,10 @@ console.log('🔍 FULL REQ.BODY KEYS:', Object.keys(req.body));
           // Write file to disk
           await fs.promises.writeFile(fullPath, fileBuffer);
           localFilePath = `uploads/menu/${filename}`;
-          
-          console.log("Saved updated file to local storage:", localFilePath);
         }
 
         if (fileBuffer && localFilePath) {
           updateData.image = localFilePath;
-          console.log("Using local file path:", updateData.image);
 
           // Try S3 upload as backup (optional)
           try {
@@ -460,7 +412,6 @@ console.log('🔍 FULL REQ.BODY KEYS:', Object.keys(req.body));
               req.file.mimetype
             );
             if (s3Url) {
-              console.log("Image also uploaded to S3:", s3Url);
               // Keep local file - don't delete it
             }
           } catch (error) {
@@ -482,9 +433,6 @@ console.log('🔍 FULL REQ.BODY KEYS:', Object.keys(req.body));
       }
     }
 
-    console.log("Final updateData before database update:", updateData);
-    console.log("Request params ID:", req.params.id);
-
     const menuItem = await Menu.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
@@ -499,16 +447,9 @@ console.log('🔍 FULL REQ.BODY KEYS:', Object.keys(req.body));
       .json({ message: "Menu item updated successfully", menuItem });
   } catch (error) {
     console.error("Error updating menu item:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      errors: error.errors,
-    });
     
     // More specific error handling
     if (error.name === 'ValidationError') {
-      console.error("Validation errors:", error.errors);
       return res.status(400).json({ 
         message: "Validation error", 
         error: error.message,
@@ -517,7 +458,6 @@ console.log('🔍 FULL REQ.BODY KEYS:', Object.keys(req.body));
     }
     
     if (error.name === 'CastError') {
-      console.error("Cast error (likely invalid ID):", error);
       return res.status(400).json({ 
         message: "Invalid ID format", 
         error: error.message 
