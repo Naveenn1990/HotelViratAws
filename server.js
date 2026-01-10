@@ -23,33 +23,10 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 })); // Vite dev aur production
-// Define the rate limiter
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutes
-//   max: process.env.NODE_ENV === 'production' ? 500 : 10000, // Higher limit for development
-//   message: "Too many requests from this IP, please try again after 15 minutes",
-// });
-// app.use(limiter);
+
 // Use morgan for logging
 app.use(morgan("dev"));
-// app.use(
-//   helmet({
-//     contentSecurityPolicy: {
-//       useDefaults: true,
-//       directives: {
-//         "img-src": [
-//           "'self'",
-//           "data:",
-//           "http://localhost:3000",
-//           "http://localhost:5173",
-//           "https://hotelvirat.com",
-//           "https://hotelvirat.s3.amazonaws.com"
-//         ],
-//       },
-//     },
-//     crossOriginResourcePolicy: { policy: "cross-origin" },
-//   })
-// );
+
 // Create upload directories if they don't exist
 const createDirIfNotExists = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
