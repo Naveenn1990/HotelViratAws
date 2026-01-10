@@ -68,7 +68,20 @@ createDirIfNotExists("uploads/table");
 // Add logging middleware for uploads
 app.use("/uploads", (req, res, next) => {
   console.log(`📁 Static file request: ${req.url}`);
-  console.log(`📂 Looking in: ${path.join(__dirname, "uploads", req.url)}`);
+  
+  // Decode URL to handle spaces and special characters
+  const decodedUrl = decodeURIComponent(req.url);
+  console.log(`📂 Looking in: ${path.join(__dirname, "uploads", decodedUrl)}`);
+  
+  // Check if decoded file exists
+  const decodedPath = path.join(__dirname, "uploads", decodedUrl);
+  if (fs.existsSync(decodedPath)) {
+    console.log(`✅ Found decoded file: ${decodedPath}`);
+    req.url = decodedUrl; // Use decoded URL for static serving
+  } else {
+    console.log(`❌ File not found: ${decodedPath}`);
+  }
+  
   next();
 });
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
