@@ -232,13 +232,40 @@ app.use("/api/v1/hotel/room-booking", roomBookingRoutes);
 app.use("/api/v1/hotel/category-access", categoryAccessRoutes);
 app.use("/api/v1/hotel/receptionist-access", receptionistAccessRoutes);
 app.use(express.static(path.join(__dirname, 'build')));
+
+// Debug middleware for static file requests
+app.use((req, res, next) => {
+  // Only log non-API requests
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/uploads/')) {
+    console.log(`🌐 Frontend request: ${req.method} ${req.path}`);
+    
+    // Check if it's requesting a static file that doesn't exist
+    if (req.path !== '/' && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, 'build', req.path);
+      if (!fs.existsSync(filePath)) {
+        console.log(`⚠️ Static file not found: ${filePath}`);
+      }
+    }
+  }
+  next();
+});
 // Redirect all requests to the index.html file (except API and uploads)
 app.get('*', (req, res, next) => {
   // Skip catch-all for API routes and uploads
   if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
     return next();
   }
-  return res.sendFile(path.join(__dirname, 'build', 'index.html'));
+  
+  const indexPath = path.join(__dirname, 'build', 'index.html');
+  console.log(`📄 Serving index.html for: ${req.path}`);
+  
+  // Check if index.html exists
+  if (!fs.existsSync(indexPath)) {
+    console.error(`❌ index.html not found at: ${indexPath}`);
+    return res.status(404).send('Frontend build not found. Please run npm run build and copy files to server.');
+  }
+  
+  return res.sendFile(indexPath);
 });
 // Global error handler middleware
 app.use((err, req, res, next) => {
