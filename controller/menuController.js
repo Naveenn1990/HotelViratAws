@@ -6,6 +6,11 @@ const fs = require("fs");
 const path = require("path");
 const { uploadFile2, deleteFile } = require("../middleware/AWS");
 
+// Helper function to sanitize filenames
+const sanitizeFilename = (originalName) => {
+  return originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+};
+
 exports.createMenuItem = async (req, res) => {
   try {
     const {
@@ -93,7 +98,7 @@ exports.createMenuItem = async (req, res) => {
           
           const timestamp = Date.now();
           const originalName = req.file.originalname;
-          const filename = `${timestamp}_${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const filename = `${timestamp}_${sanitizeFilename(originalName)}`;
           
           const uploadDir = path.join(__dirname, '../uploads/menu');
           const fullPath = path.join(uploadDir, filename);
@@ -328,7 +333,7 @@ exports.updateMenuItem = async (req, res) => {
           
           const timestamp = Date.now();
           const originalName = req.file.originalname;
-          const filename = `${timestamp}_${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const filename = `${timestamp}_${sanitizeFilename(originalName)}`;
           
           const uploadDir = path.join(__dirname, '../uploads/menu');
           const fullPath = path.join(uploadDir, filename);

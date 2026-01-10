@@ -54,7 +54,6 @@ app.use(morgan("dev"));
 const createDirIfNotExists = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
-    console.log(`Directory created: ${dirPath}`);
   }
 };
 createDirIfNotExists("uploads");
@@ -65,21 +64,15 @@ createDirIfNotExists("uploads/offer");
 createDirIfNotExists("uploads/rooms");
 createDirIfNotExists("uploads/table");
 // Serve static files from the "uploads" directory
-// Add logging middleware for uploads
+// Add URL decoding middleware for uploads (silent in production)
 app.use("/uploads", (req, res, next) => {
-  console.log(`📁 Static file request: ${req.url}`);
-  
   // Decode URL to handle spaces and special characters
   const decodedUrl = decodeURIComponent(req.url);
-  console.log(`📂 Looking in: ${path.join(__dirname, "uploads", decodedUrl)}`);
+  const fullPath = path.join(__dirname, "uploads", decodedUrl);
   
-  // Check if decoded file exists
-  const decodedPath = path.join(__dirname, "uploads", decodedUrl);
-  if (fs.existsSync(decodedPath)) {
-    console.log(`✅ Found decoded file: ${decodedPath}`);
+  // Check if decoded file exists and use it
+  if (fs.existsSync(fullPath)) {
     req.url = decodedUrl; // Use decoded URL for static serving
-  } else {
-    console.log(`❌ File not found: ${decodedPath}`);
   }
   
   next();
@@ -87,37 +80,30 @@ app.use("/uploads", (req, res, next) => {
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // MongoDB Connection with better error handling and reconnection
 const mongoURI = process.env.MONGO_URI || 'mongodb+srv://hotelvirat:zR4WlMNuRO3ZB60x@cluster0.vyfwyjl.mongodb.net/HotelVirat';
-console.log('🔄 Connecting to MongoDB...');
+
 mongoose
   .connect(mongoURI, {
     serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
     socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
   })
   .then(() => {
-    console.log("✅ MongoDB Connected Successfully");
-    console.log("📊 Connection State:", mongoose.connection.readyState === 1 ? "Connected" : "Not Connected");
-    console.log("📊 Database:", mongoose.connection.db.databaseName);
+    console.log("✅ MongoDB Connected");
   })
   .catch((err) => {
     console.error("❌ MongoDB Connection Error: ", err.message);
-    console.log("💡 General troubleshooting:");
-    console.log("1. MongoDB server is running");
-    console.log("2. MONGO_URI is correct in your .env file");
-    console.log("3. Network connectivity to MongoDB");
-    console.log("4. Check MongoDB Atlas cluster status");
   });
 // MongoDB connection event handlers
 mongoose.connection.on('connected', () => {
-  console.log('✅ MongoDB connected');
+  // Silent in production
 });
 mongoose.connection.on('error', (err) => {
   console.error('❌ MongoDB connection error:', err.message);
 });
 mongoose.connection.on('disconnected', () => {
-  console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+  console.warn('⚠️  MongoDB disconnected');
 });
 mongoose.connection.on('reconnected', () => {
-  console.log('✅ MongoDB reconnected successfully');
+  console.log('✅ MongoDB reconnected');
 });
 // Use Routes
 const userRoutes = require("./routes/userRoutes");
@@ -256,14 +242,9 @@ app.get('*', (req, res, next) => {
 });
 // Global error handler middleware
 app.use((err, req, res, next) => {
-  console.error("=== GLOBAL ERROR HANDLER ===");
-  console.error("Error:", err);
-  console.error("Error type:", err?.constructor?.name);
-  console.error("Error message:", err?.message);
-  console.error("Error stack:", err?.stack);
-  console.error("Request URL:", req.url);
-  console.error("Request method:", req.method);
-  console.error("Request headers:", req.headers);
+  // Only log essential error info in production
+  console.error(`❌ Error: ${err.message} | ${req.method} ${req.url}`);
+  
   res.status(500).json({
     success: false,
     message: "Internal server error",
