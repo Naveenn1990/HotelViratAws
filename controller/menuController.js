@@ -40,11 +40,6 @@ exports.createMenuItem = async (req, res) => {
     } = req.body;
 
     // Parse JSON strings if needed
-    console.log("req.file:", req.file);
-    console.log("req.files:", req.files);
-    console.log("Content-Type:", req.headers["content-type"]);
-
-    // Parse JSON strings if needed
     let parsedQuantities = quantities;
     if (typeof quantities === "string") {
       try {
@@ -119,13 +114,10 @@ exports.createMenuItem = async (req, res) => {
           // Write file to disk
           await fs.promises.writeFile(fullPath, fileBuffer);
           localFilePath = `uploads/menu/${filename}`;
-          
-          console.log("Saved file to local storage:", localFilePath);
         }
 
         if (fileBuffer && localFilePath) {
           image = localFilePath;
-          console.log("Using local file path:", image);
 
           // Try S3 upload as backup (optional)
           try {
@@ -135,7 +127,6 @@ exports.createMenuItem = async (req, res) => {
               req.file.mimetype
             );
             if (s3Url) {
-              console.log("Image also uploaded to S3:", s3Url);
               // Keep local file - don't delete it
             }
           } catch (error) {
@@ -150,7 +141,7 @@ exports.createMenuItem = async (req, res) => {
         // Continue without image if upload fails
       }
     } else {
-      console.log("No image file provided");
+      // No image provided
     }
 
     const menuItemData = {
@@ -200,12 +191,7 @@ exports.createMenuItem = async (req, res) => {
       .status(201)
       .json({ message: "Menu item created successfully", menuItem });
   } catch (error) {
-    console.error("Error creating menu item:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-    });
+    console.error("Error creating menu item:", error.message);
     res
       .status(400)
       .json({ message: "Error creating menu item", error: error.message });
@@ -446,7 +432,7 @@ exports.updateMenuItem = async (req, res) => {
       .status(200)
       .json({ message: "Menu item updated successfully", menuItem });
   } catch (error) {
-    console.error("Error updating menu item:", error);
+    console.error("Error updating menu item:", error.message);
     
     // More specific error handling
     if (error.name === 'ValidationError') {
