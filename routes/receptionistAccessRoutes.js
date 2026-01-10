@@ -1,13 +1,23 @@
 const express = require('express');
 const router = express.Router();
+const receptionistAccessController = require('../controller/receptionistAccessController');
 
-// Basic receptionistaccess routes - add your receptionistaccess controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Receptionistaccess routes working' });
-});
+// Get all receptionist access users
+router.get('/', receptionistAccessController.getAllReceptionistAccess);
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create receptionistaccess endpoint' });
-});
+// Get receptionist access by ID
+router.get('/:id', receptionistAccessController.getReceptionistAccessById);
+
+// Create receptionist access user
+router.post('/', receptionistAccessController.createReceptionistAccess);
+
+// Update receptionist access user
+router.put('/:id', receptionistAccessController.updateReceptionistAccess);
+
+// Delete receptionist access user
+router.delete('/:id', receptionistAccessController.deleteReceptionistAccess);
+
+// Login receptionist
+router.post('/login', receptionistAccessController.loginReceptionistAccess);
 
 module.exports = router;

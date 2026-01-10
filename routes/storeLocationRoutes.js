@@ -1,13 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const storeLocationController = require('../controller/storeLocationController');
 
-// Basic storelocation routes - add your storelocation controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Storelocation routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create storelocation endpoint' });
-});
+// Store location routes
+router.get('/', storeLocationController.getAllStoreLocations);
+router.get('/:id', storeLocationController.getStoreLocationById);
+router.post('/', storeLocationController.createStoreLocation);
+router.put('/:id', storeLocationController.updateStoreLocation);
+router.delete('/:id', storeLocationController.deleteStoreLocation);
 
 module.exports = router;

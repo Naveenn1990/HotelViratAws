@@ -444,7 +444,7 @@ exports.getAllStaffOrders = async (req, res) => {
     res.status(200).json({
       success: true,
       count: staffOrders.length,
-      orders: staffOrders,
+      data: staffOrders,
     })
   } catch (error) {
     console.error("Error fetching orders:", error)

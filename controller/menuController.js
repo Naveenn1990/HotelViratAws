@@ -166,11 +166,72 @@ exports.createMenuItem = async (req, res) => {
       menuItemData._id = _id;
     }
 
+    // Log the data being saved for debugging
+    console.log("Menu item data being saved:", {
+      menuItemNumber: menuItemData.menuItemNumber,
+      name: menuItemData.name,
+      itemName: menuItemData.itemName,
+      categoryId: menuItemData.categoryId,
+      branchId: menuItemData.branchId,
+      price: menuItemData.price
+    });
+
     const menuItem = new Menu(menuItemData);
     await menuItem.save();
-    res.status(201).json({ message: "Menu item created successfully", menuItem });
+    res.status(201).json({ 
+      success: true,
+      message: "Menu item created successfully", 
+      data: menuItem 
+    });
   } catch (error) {
-    res.status(400).json({ message: "Error creating menu item", error: error.message });
+    console.error("Error creating menu item:", error);
+    
+    // Handle specific MongoDB errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message,
+        value: err.value
+      }));
+      return res.status(400).json({ 
+        success: false,
+        message: "Validation failed", 
+        error: "Menu item validation failed",
+        validationErrors: validationErrors,
+        details: error.errors
+      });
+    }
+    
+    if (error.code === 11000) {
+      // Duplicate key error
+      const field = Object.keys(error.keyPattern)[0];
+      const value = error.keyValue[field];
+      return res.status(400).json({ 
+        success: false,
+        message: `Duplicate ${field}`, 
+        error: `A menu item with ${field} '${value}' already exists`,
+        duplicateField: field,
+        duplicateValue: value
+      });
+    }
+    
+    // Log the full error for debugging
+    console.error("Full error details:", {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      keyPattern: error.keyPattern,
+      keyValue: error.keyValue,
+      stack: error.stack
+    });
+    
+    res.status(400).json({ 
+      success: false,
+      message: "Error creating menu item", 
+      error: error.message,
+      errorType: error.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

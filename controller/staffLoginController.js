@@ -9,9 +9,21 @@ const generateOtp = () => {
 exports.getAllStaff = async (req, res) => {
   try {
     const staff = await Staff.find({}).sort({ createdAt: -1 })
-    res.status(200).json(staff)
+    
+    // Return consistent format
+    res.status(200).json({
+      success: true,
+      count: staff.length,
+      data: staff
+    })
   } catch (error) {
-    res.status(500).json({ message: "Error fetching staff users", error: error.message })
+    res.status(500).json({ 
+      success: false,
+      count: 0,
+      data: [],
+      message: "Error fetching staff users", 
+      error: error.message 
+    })
   }
 }
 

@@ -14,6 +14,7 @@ const {
 // Counter order routes
 router.post('/', createCounterOrder);
 router.get('/', getAllCounterOrders);
+router.get('/orders', getAllCounterOrders); // Add alias route for frontend compatibility
 router.get('/:id', getCounterOrderById);
 router.get('/user/:userId', getCounterOrdersByUserId);
 router.put('/:id', updateCounterOrder);

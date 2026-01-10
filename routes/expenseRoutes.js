@@ -1,13 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const expenseController = require('../controller/expenseController');
 
-// Basic expense routes - add your expense controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Expense routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create expense endpoint' });
-});
+// Expense routes
+router.get('/', expenseController.getExpenses);
+router.post('/', expenseController.createExpense);
+router.delete('/:id', expenseController.deleteExpense);
 
 module.exports = router;

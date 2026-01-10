@@ -1,13 +1,22 @@
 const express = require('express');
 const router = express.Router();
+const {
+  createMealOfTheDay,
+  getAllMealsOfTheDay,
+  getMealsByBranch,
+  getMealOfTheDayById,
+  updateMealOfTheDay,
+  deleteMealOfTheDay,
+  getTodaysMeal
+} = require('../controller/mealOfTheDayController');
 
-// Basic mealoftheday routes - add your mealoftheday controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Mealoftheday routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create mealoftheday endpoint' });
-});
+// Meal of the day routes
+router.get('/', getAllMealsOfTheDay);
+router.post('/', createMealOfTheDay);
+router.get('/branch/:branchId', getMealsByBranch);
+router.get('/today/:branchId', getTodaysMeal);
+router.get('/:id', getMealOfTheDayById);
+router.put('/:id', updateMealOfTheDay);
+router.delete('/:id', deleteMealOfTheDay);
 
 module.exports = router;

@@ -1,13 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const adminController = require('../controller/adminController');
 
-// Basic admin routes - add your admin controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Admin routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create admin endpoint' });
-});
+// Admin routes
+router.post('/register', adminController.registerAdmin);
+router.post('/login', adminController.loginAdmin);
 
 module.exports = router;

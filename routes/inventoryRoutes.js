@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const inventoryController = require('../controller/inventoryController');
 
-// Basic inventory routes - add your inventory controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Inventory routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create inventory endpoint' });
-});
+// Inventory routes
+router.get('/:branchId', inventoryController.getInventoryByBranch);
+router.get('/low-stock/:branchId', inventoryController.getLowStockProducts);
+router.get('/history/:productId', inventoryController.getStockHistory);
+router.get('/export/:branchId', inventoryController.exportInventory);
+router.put('/update/:productId', inventoryController.updateProductStock);
+router.put('/bulk-update', inventoryController.bulkUpdateStock);
 
 module.exports = router;

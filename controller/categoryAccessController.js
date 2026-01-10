@@ -7,10 +7,21 @@ exports.getAllCategoryAccess = async (req, res) => {
     const users = await CategoryAccess.find()
       .select('-password')
       .sort({ createdAt: -1 });
-    res.status(200).json(users);
+    
+    // Return consistent format
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      data: users
+    });
   } catch (error) {
     console.error('Error fetching category access users:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      count: 0,
+      data: [],
+      message: error.message 
+    });
   }
 };
 

@@ -1,13 +1,20 @@
 const express = require('express');
 const router = express.Router();
+const termsController = require('../controller/termsController');
 
-// Basic terms routes - add your terms controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Terms routes working' });
-});
+// Get all terms and policies
+router.get('/', termsController.getTerms);
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create terms endpoint' });
-});
+// Get term by ID
+router.get('/:id', termsController.getTermById);
+
+// Create term
+router.post('/', termsController.createTerm);
+
+// Update term
+router.put('/:id', termsController.updateTerm);
+
+// Delete term
+router.delete('/:id', termsController.deleteTerm);
 
 module.exports = router;

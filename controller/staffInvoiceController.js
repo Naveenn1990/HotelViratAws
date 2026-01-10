@@ -165,7 +165,7 @@ exports.getAllInvoices = async (req, res) => {
     res.status(200).json({
       success: true,
       count: invoices.length,
-      invoices,
+      data: invoices,
     })
   } catch (error) {
     console.error("Error fetching invoices:", error)

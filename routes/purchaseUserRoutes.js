@@ -1,13 +1,34 @@
 const express = require('express');
 const router = express.Router();
+const {
+  sendOtp,
+  verifyOtp,
+  registerUser,
+  getUserProfile,
+  getAllUsers,
+  updateUserStatus,
+  deleteUser
+} = require('../controller/purchaseUserController');
 
-// Basic purchaseuser routes - add your purchaseuser controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Purchaseuser routes working' });
-});
+// Get all users (admin function)
+router.get('/', getAllUsers);
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create purchaseuser endpoint' });
-});
+// Send OTP
+router.post('/send-otp', sendOtp);
+
+// Verify OTP and login
+router.post('/verify-otp', verifyOtp);
+
+// Register user
+router.post('/register', registerUser);
+
+// Get user profile
+router.get('/profile/:phoneNumber', getUserProfile);
+
+// Update user status
+router.put('/status/:phoneNumber', updateUserStatus);
+
+// Delete user
+router.delete('/:phoneNumber', deleteUser);
 
 module.exports = router;

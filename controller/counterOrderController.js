@@ -279,8 +279,9 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
 
   if (!counterOrders || counterOrders.length === 0) {
     return res.status(200).json({
-      message: "No counter orders found",
-      orders: [],
+      success: true,
+      count: 0,
+      data: [],
     })
   }
 
@@ -328,9 +329,9 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
     .filter((order) => order !== null) // Remove any null entries
 
   res.status(200).json({
-    message: "Counter orders retrieved successfully",
+    success: true,
     count: formattedOrders.length,
-    orders: formattedOrders,
+    data: formattedOrders,
   })
 })
 

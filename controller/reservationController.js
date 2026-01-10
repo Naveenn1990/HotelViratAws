@@ -154,10 +154,21 @@ const getReservations = async (req, res) => {
     }
 
     console.log("Found reservations:", fixedReservations.length)
-    res.json(fixedReservations)
+    
+    // Return consistent format
+    res.json({
+      success: true,
+      count: fixedReservations.length,
+      data: fixedReservations
+    })
   } catch (err) {
     console.error("Error fetching reservations:", err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ 
+      success: false,
+      count: 0,
+      data: [],
+      error: err.message 
+    })
   }
 }
 

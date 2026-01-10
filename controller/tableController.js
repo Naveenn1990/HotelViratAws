@@ -39,7 +39,11 @@ const createTable = asyncHandler(async (req, res) => {
     .populate('branchId', 'name')
     .populate('categoryId', 'name');
 
-  res.status(201).json(populatedTable);
+  res.status(201).json({
+    success: true,
+    message: 'Table created successfully',
+    data: populatedTable
+  });
 });
 
 const getTables = asyncHandler(async (req, res) => {
@@ -51,7 +55,12 @@ const getTables = asyncHandler(async (req, res) => {
   const tables = await Table.find(query)
     .populate('branchId', 'name')
     .populate('categoryId', 'name');
-  res.json(tables);
+    
+  res.json({
+    success: true,
+    count: tables.length,
+    data: tables
+  });
 });
 
 const getTableById = asyncHandler(async (req, res) => {
@@ -60,7 +69,10 @@ const getTableById = asyncHandler(async (req, res) => {
     .populate('categoryId', 'name');
 
   if (table) {
-    res.json(table);
+    res.json({
+      success: true,
+      data: table
+    });
   } else {
     res.status(404);
     throw new Error('Table not found');
@@ -109,7 +121,11 @@ const updateTable = asyncHandler(async (req, res) => {
     throw new Error('Table not found');
   }
 
-  res.json(updatedTable);
+  res.json({
+    success: true,
+    message: 'Table updated successfully',
+    data: updatedTable
+  });
 });
 
 const deleteTable = asyncHandler(async (req, res) => {
@@ -125,7 +141,10 @@ const deleteTable = asyncHandler(async (req, res) => {
   }
 
   await Table.deleteOne({ _id: req.params.id });
-  res.json({ message: 'Table removed successfully' });
+  res.json({ 
+    success: true,
+    message: 'Table removed successfully' 
+  });
 });
 
 module.exports = {

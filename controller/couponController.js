@@ -83,9 +83,17 @@ exports.getAllCoupons = async (req, res) => {
       .populate("applicableBranches", "name")
       .sort({ createdAt: -1 });
 
-    res.status(200).json(coupons);
+    res.status(200).json({
+      success: true,
+      count: coupons.length,
+      data: coupons
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching coupons", error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching coupons", 
+      error: error.message 
+    });
   }
 };
 

@@ -243,9 +243,11 @@ exports.getAllUsers = async (req, res) => {
 
     const total = await PurchaseUser.countDocuments(filter)
 
+    // Return consistent format
     res.status(200).json({
       success: true,
-      users,
+      count: total,
+      data: users,
       pagination: {
         currentPage: Number.parseInt(page),
         totalPages: Math.ceil(total / limit),
@@ -257,6 +259,8 @@ exports.getAllUsers = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      count: 0,
+      data: [],
       message: "Error fetching users",
       error: error.message,
     })

@@ -1,13 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const customerController = require('../controller/customercontroller');
 
-// Basic customer routes - add your customer controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Customer routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create customer endpoint' });
-});
+// Customer routes
+router.get('/', customerController.getAllCustomers);
+router.get('/:id', customerController.getCustomerById);
+router.post('/', customerController.createCustomer);
+router.put('/:id', customerController.updateCustomer);
+router.delete('/:id', customerController.deleteCustomer);
 
 module.exports = router;

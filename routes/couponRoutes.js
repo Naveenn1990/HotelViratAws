@@ -1,13 +1,27 @@
 const express = require('express');
 const router = express.Router();
+const couponController = require('../controller/couponController');
+const upload = require('../middleware/multerConfig');
 
-// Basic coupon routes - add your coupon controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Coupon routes working' });
-});
+// Get all coupons
+router.get('/', couponController.getAllCoupons);
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create coupon endpoint' });
-});
+// Get coupon by ID
+router.get('/:id', couponController.getCouponById);
+
+// Create coupon
+router.post('/', upload.single('image'), couponController.createCoupon);
+
+// Update coupon
+router.put('/:id', upload.single('image'), couponController.updateCoupon);
+
+// Delete coupon
+router.delete('/:id', couponController.deleteCoupon);
+
+// Validate coupon
+router.post('/validate', couponController.validateCoupon);
+
+// Apply coupon
+router.post('/apply', couponController.applyCoupon);
 
 module.exports = router;

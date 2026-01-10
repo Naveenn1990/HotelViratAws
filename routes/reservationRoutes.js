@@ -1,13 +1,30 @@
 const express = require('express');
 const router = express.Router();
+const {
+  createReservation,
+  getReservations,
+  getReservationById,
+  updateReservation,
+  deleteReservation,
+  cancelReservation,
+} = require('../controller/reservationController');
 
-// Basic reservation routes - add your reservation controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Reservation routes working' });
-});
+// Get all reservations
+router.get('/', getReservations);
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create reservation endpoint' });
-});
+// Create new reservation
+router.post('/', createReservation);
+
+// Get reservation by ID
+router.get('/:id', getReservationById);
+
+// Update reservation
+router.put('/:id', updateReservation);
+
+// Cancel reservation
+router.put('/:id/cancel', cancelReservation);
+
+// Delete reservation
+router.delete('/:id', deleteReservation);
 
 module.exports = router;

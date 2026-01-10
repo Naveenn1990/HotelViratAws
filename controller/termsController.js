@@ -14,9 +14,17 @@ exports.getTerms = async (req, res) => {
     // Get terms and policies
     const terms = await Terms.find(query).sort({ order: 1, createdAt: -1 })
 
-    res.status(200).json(terms)
+    res.status(200).json({
+      success: true,
+      count: terms.length,
+      data: terms
+    })
   } catch (error) {
-    res.status(500).json({ message: "Error fetching terms and policies", error: error.message })
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching terms and policies", 
+      error: error.message 
+    })
   }
 }
 

@@ -208,7 +208,8 @@ exports.getAllSubmissions = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      submissions,
+      count: submissions.length,
+      data: submissions,
       totalPages: Math.ceil(total / limit),
       pagination: {
         currentPage: Number.parseInt(page),

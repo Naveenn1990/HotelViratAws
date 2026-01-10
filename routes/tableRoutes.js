@@ -1,13 +1,18 @@
 const express = require('express');
 const router = express.Router();
+const {
+  createTable,
+  getTables,
+  getTableById,
+  updateTable,
+  deleteTable,
+} = require('../controller/tableController');
 
-// Basic table routes - add your table controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Table routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create table endpoint' });
-});
+// Table routes
+router.get('/', getTables);
+router.post('/', createTable);
+router.get('/:id', getTableById);
+router.put('/:id', updateTable);
+router.delete('/:id', deleteTable);
 
 module.exports = router;

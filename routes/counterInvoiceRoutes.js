@@ -1,13 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const counterInvoiceController = require('../controller/counterInvoiceController');
 
-// Basic counterinvoice routes - add your counterinvoice controller when available
-router.get('/', (req, res) => {
-  res.json({ message: 'Counterinvoice routes working' });
-});
-
-router.post('/', (req, res) => {
-  res.json({ message: 'Create counterinvoice endpoint' });
-});
+// Counter invoice routes
+router.post('/', counterInvoiceController.addInvoice);
 
 module.exports = router;
