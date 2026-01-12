@@ -30,8 +30,8 @@ const limiter = rateLimit({
   message: "Too many requests from this IP, please try again after 15 minutes",
 });
 app.use(limiter);
-// Use morgan for logging
-app.use(morgan("dev"));
+// Use morgan for logging - DISABLED to reduce log noise
+// app.use(morgan("dev"));
 // app.use(
 //   helmet({
 //     contentSecurityPolicy: {
@@ -65,12 +65,6 @@ createDirIfNotExists("uploads/offer");
 createDirIfNotExists("uploads/rooms");
 createDirIfNotExists("uploads/table");
 // Serve static files from the "uploads" directory
-// Add logging middleware for uploads
-app.use("/uploads", (req, res, next) => {
-  console.log(`📁 Static file request: ${req.url}`);
-  console.log(`📂 Looking in: ${path.join(__dirname, "uploads", req.url)}`);
-  next();
-});
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // MongoDB Connection with better error handling and reconnection
 const mongoURI = process.env.MONGO_URI || 'mongodb+srv://hotelvirat:zR4WlMNuRO3ZB60x@cluster0.vyfwyjl.mongodb.net/HotelVirat';
