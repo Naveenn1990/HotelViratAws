@@ -25,6 +25,7 @@ router.post('/login/resend-otp', userController.resendOtpForLogin);
 
 router.post('/', upload.single('image'), userController.createUser);
 router.get('/', userController.getAllUsers);
+router.get('/all', userController.getAllUsers); // Add explicit /all route
 router.get('/:id', userController.getUserById);
 router.put('/:id', upload.single('image'), userController.updateUser);
 router.delete('/:id', userController.deleteUser);

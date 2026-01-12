@@ -10,6 +10,7 @@ router.post("/verify-otp", purchaseUserController.verifyOtp)
 router.post("/register", purchaseUserController.registerUser)
 
 // User management routes
+router.get("/", purchaseUserController.getAllUsers) // Add root endpoint
 router.get("/profile/:phoneNumber", purchaseUserController.getUserProfile)
 router.get("/all", purchaseUserController.getAllUsers)
 router.put("/status/:phoneNumber", purchaseUserController.updateUserStatus)
