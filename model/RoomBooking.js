@@ -30,6 +30,29 @@ const roomBookingSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  aadhaarNumber: {
+    type: String,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // Optional field, but if provided, should be 12 digits
+        return !v || /^\d{12}$/.test(v);
+      },
+      message: 'Aadhaar number must be 12 digits'
+    }
+  },
+  panNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    validate: {
+      validator: function(v) {
+        // Optional field, but if provided, should match PAN format
+        return !v || /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(v);
+      },
+      message: 'PAN number must be in format: ABCDE1234F'
+    }
+  },
   checkInDate: {
     type: Date,
     required: true,
@@ -47,6 +70,42 @@ const roomBookingSchema = new mongoose.Schema({
     type: String,
     required: true,
     default: '11:00',
+  },
+  actualCheckInTime: {
+    type: Date,
+    default: null,
+  },
+  actualCheckOutTime: {
+    type: Date,
+    default: null,
+  },
+  restaurantBills: [{
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    addedBy: {
+      type: String,
+      default: 'Receptionist',
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    }
+  }],
+  restaurantTotal: {
+    type: Number,
+    default: 0,
   },
   nights: {
     type: Number,

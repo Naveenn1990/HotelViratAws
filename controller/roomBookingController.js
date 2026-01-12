@@ -239,14 +239,27 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    const oldStatus = booking.status;
     booking.status = status;
+
+    // Capture actual check-in/check-out times when status changes
+    if (status === 'checked-in' && oldStatus !== 'checked-in') {
+      booking.actualCheckInTime = new Date();
+    } else if (status === 'checked-out' && oldStatus !== 'checked-out') {
+      booking.actualCheckOutTime = new Date();
+    }
+
     await booking.save();
 
     // With time slot system, we don't automatically change room availability
     // Rooms remain available for other time slots even when some slots are booked
     // Only set room as unavailable if it's a maintenance/system issue, not booking-related
 
-    res.json(booking);
+    const populatedBooking = await RoomBooking.findById(booking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.json(populatedBooking);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -558,6 +571,83 @@ const getRoomBookedTimeSlots = asyncHandler(async (req, res) => {
   }
 });
 
+// Add restaurant bill to booking
+const addRestaurantBill = asyncHandler(async (req, res) => {
+  try {
+    const { amount, description } = req.body;
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (booking.status !== 'checked-in') {
+      return res.status(400).json({ message: "Can only add restaurant bills for checked-in guests" });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: "Amount must be greater than 0" });
+    }
+
+    if (!description || !description.trim()) {
+      return res.status(400).json({ message: "Description is required" });
+    }
+
+    // Add restaurant bill
+    booking.restaurantBills.push({
+      amount: parseFloat(amount),
+      description: description.trim(),
+      date: new Date(),
+      addedBy: 'Receptionist'
+    });
+
+    // Update restaurant total
+    booking.restaurantTotal = booking.restaurantBills.reduce((sum, bill) => sum + bill.amount, 0);
+
+    await booking.save();
+
+    const populatedBooking = await RoomBooking.findById(booking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.json(populatedBooking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Remove restaurant bill from booking
+const removeRestaurantBill = asyncHandler(async (req, res) => {
+  try {
+    const { billId } = req.params;
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (booking.status !== 'checked-in') {
+      return res.status(400).json({ message: "Can only modify restaurant bills for checked-in guests" });
+    }
+
+    // Remove the bill
+    booking.restaurantBills = booking.restaurantBills.filter(bill => bill._id.toString() !== billId);
+
+    // Update restaurant total
+    booking.restaurantTotal = booking.restaurantBills.reduce((sum, bill) => sum + bill.amount, 0);
+
+    await booking.save();
+
+    const populatedBooking = await RoomBooking.findById(booking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.json(populatedBooking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createBooking,
   createWalkInBooking,
@@ -572,4 +662,6 @@ module.exports = {
   approveCancellation,
   getCancellationRequests,
   getPaymentSummary,
+  addRestaurantBill,
+  removeRestaurantBill,
 };
