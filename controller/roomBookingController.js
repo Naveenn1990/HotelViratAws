@@ -648,6 +648,82 @@ const removeRestaurantBill = asyncHandler(async (req, res) => {
   }
 });
 
+// Extend booking - extend check-out date and add additional charges
+const extendBooking = asyncHandler(async (req, res) => {
+  try {
+    const { newCheckOutDate, additionalNights, additionalAmount } = req.body;
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (booking.status !== 'checked-in') {
+      return res.status(400).json({ message: "Can only extend checked-in bookings" });
+    }
+
+    if (!newCheckOutDate || !additionalNights || !additionalAmount) {
+      return res.status(400).json({ message: "Missing required fields: newCheckOutDate, additionalNights, additionalAmount" });
+    }
+
+    // Validate new check-out date is after current check-out date
+    const currentCheckOut = new Date(booking.checkOutDate);
+    const newCheckOut = new Date(newCheckOutDate);
+    
+    if (newCheckOut <= currentCheckOut) {
+      return res.status(400).json({ message: "New check-out date must be after current check-out date" });
+    }
+
+    // Check if room is available for the extended period
+    const conflictingBookings = await RoomBooking.find({
+      roomId: booking.roomId,
+      _id: { $ne: booking._id }, // Exclude current booking
+      status: { $nin: ['cancelled', 'checked-out'] },
+      checkInDate: { $lt: newCheckOut },
+      checkOutDate: { $gt: currentCheckOut }
+    });
+
+    if (conflictingBookings.length > 0) {
+      return res.status(400).json({ 
+        message: "Room is already booked for the extended period",
+        conflicts: conflictingBookings.map(b => ({
+          checkInDate: b.checkInDate,
+          checkOutDate: b.checkOutDate,
+          guestName: b.userName
+        }))
+      });
+    }
+
+    // Update booking
+    booking.checkOutDate = newCheckOut;
+    booking.nights = booking.nights + parseInt(additionalNights);
+    booking.totalPrice = booking.totalPrice + parseFloat(additionalAmount);
+    
+    // Add extension record to history
+    if (!booking.extensions) {
+      booking.extensions = [];
+    }
+    booking.extensions.push({
+      previousCheckOutDate: currentCheckOut,
+      newCheckOutDate: newCheckOut,
+      additionalNights: parseInt(additionalNights),
+      additionalAmount: parseFloat(additionalAmount),
+      extendedAt: new Date()
+    });
+
+    await booking.save();
+
+    const populatedBooking = await RoomBooking.findById(booking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.json(populatedBooking);
+  } catch (error) {
+    console.error("Error extending booking:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createBooking,
   createWalkInBooking,
@@ -664,4 +740,5 @@ module.exports = {
   getPaymentSummary,
   addRestaurantBill,
   removeRestaurantBill,
+  extendBooking,
 };
