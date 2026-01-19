@@ -724,6 +724,85 @@ const extendBooking = asyncHandler(async (req, res) => {
   }
 });
 
+// Cancel extension - revert booking to original dates and remove extension charges
+const cancelExtension = asyncHandler(async (req, res) => {
+  try {
+    const { daysToCancel } = req.body; // Number of days to cancel from extension
+    const booking = await RoomBooking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (booking.status !== 'checked-in') {
+      return res.status(400).json({ message: "Can only cancel extensions for checked-in bookings" });
+    }
+
+    if (!booking.extensions || booking.extensions.length === 0) {
+      return res.status(400).json({ message: "No extensions found to cancel" });
+    }
+
+    // Get the most recent extension
+    const lastExtension = booking.extensions[booking.extensions.length - 1];
+    
+    // Validate days to cancel
+    const maxDaysToCancel = lastExtension.additionalNights;
+    const requestedDays = parseInt(daysToCancel) || maxDaysToCancel;
+    
+    if (requestedDays <= 0 || requestedDays > maxDaysToCancel) {
+      return res.status(400).json({ 
+        message: `Invalid days to cancel. You can cancel 1 to ${maxDaysToCancel} days from the extension.` 
+      });
+    }
+
+    // Calculate new dates and amounts
+    const originalCheckOut = new Date(lastExtension.previousCheckOutDate);
+    const currentCheckOut = new Date(booking.checkOutDate);
+    const newCheckOut = new Date(currentCheckOut);
+    newCheckOut.setDate(currentCheckOut.getDate() - requestedDays);
+
+    // Calculate amount to refund (proportional to days cancelled)
+    const amountPerDay = lastExtension.additionalAmount / lastExtension.additionalNights;
+    const refundAmount = amountPerDay * requestedDays;
+
+    // Update booking
+    booking.checkOutDate = newCheckOut;
+    booking.nights = booking.nights - requestedDays;
+    booking.totalPrice = booking.totalPrice - refundAmount;
+    
+    // Update the extension record
+    if (requestedDays === maxDaysToCancel) {
+      // Remove entire extension if all days are cancelled
+      booking.extensions.pop();
+    } else {
+      // Update extension with remaining days
+      lastExtension.additionalNights = lastExtension.additionalNights - requestedDays;
+      lastExtension.additionalAmount = lastExtension.additionalAmount - refundAmount;
+      lastExtension.newCheckOutDate = newCheckOut;
+    }
+
+    await booking.save();
+
+    const populatedBooking = await RoomBooking.findById(booking._id)
+      .populate('roomId')
+      .populate('branchId', 'name');
+
+    res.json({
+      message: `${requestedDays} day(s) cancelled from extension successfully`,
+      booking: populatedBooking,
+      cancelledDetails: {
+        daysCancelled: requestedDays,
+        refundAmount: refundAmount,
+        newCheckOutDate: newCheckOut,
+        remainingExtensionDays: requestedDays === maxDaysToCancel ? 0 : (maxDaysToCancel - requestedDays)
+      }
+    });
+  } catch (error) {
+    console.error("Error cancelling extension:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createBooking,
   createWalkInBooking,
@@ -741,4 +820,5 @@ module.exports = {
   addRestaurantBill,
   removeRestaurantBill,
   extendBooking,
+  cancelExtension,
 };

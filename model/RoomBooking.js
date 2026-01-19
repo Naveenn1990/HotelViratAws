@@ -182,6 +182,30 @@ const roomBookingSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'refunded'],
     default: 'pending',
   },
+  extensions: [{
+    previousCheckOutDate: {
+      type: Date,
+      required: true,
+    },
+    newCheckOutDate: {
+      type: Date,
+      required: true,
+    },
+    additionalNights: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+    additionalAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    extendedAt: {
+      type: Date,
+      default: Date.now,
+    }
+  }],
 }, {
   timestamps: true
 });

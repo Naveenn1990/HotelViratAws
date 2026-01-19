@@ -17,6 +17,7 @@ const {
   addRestaurantBill,
   removeRestaurantBill,
   extendBooking,
+  cancelExtension,
 } = require("../controller/roomBookingController");
 
 router.route("/").post(createBooking).get(getBookings);
@@ -29,6 +30,7 @@ router.route("/:id").get(getBookingById);
 router.route("/:id/status").put(updateBookingStatus);
 router.route("/:id/payment").put(updatePayment);
 router.route("/:id/extend").put(extendBooking);
+router.route("/:id/cancel-extension").put(cancelExtension);
 router.route("/:id/restaurant-bill").post(addRestaurantBill);
 router.route("/:id/restaurant-bill/:billId").delete(removeRestaurantBill);
 router.route("/:id/cancel").put(cancelBooking);
