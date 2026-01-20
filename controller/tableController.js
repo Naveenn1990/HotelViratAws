@@ -12,7 +12,7 @@ const createTable = asyncHandler(async (req, res) => {
   }
 
   console.log('Create table request body:', req.body);
-  const { branchId, categoryId, number, status } = req.body;
+  const { branchId, categoryId, number, capacity, status } = req.body;
   const image = req.file ? await uploadFile2(req.file,'table') : null;
 
   if (!branchId || !number) {
@@ -29,6 +29,9 @@ const createTable = asyncHandler(async (req, res) => {
   const tableData = { branchId, number, status, image };
   if (categoryId) {
     tableData.categoryId = categoryId;
+  }
+  if (capacity) {
+    tableData.capacity = parseInt(capacity);
   }
 
   const table = new Table(tableData);
@@ -73,8 +76,12 @@ const updateTable = asyncHandler(async (req, res) => {
     throw new Error('Request body is missing');
   }
 
-  const { branchId, categoryId, number, status } = req.body;
+  const { branchId, categoryId, number, capacity, status } = req.body;
   const updateData = { branchId, categoryId, number, status };
+  
+  if (capacity) {
+    updateData.capacity = parseInt(capacity);
+  }
 
   Object.keys(updateData).forEach(key => 
     updateData[key] === undefined && delete updateData[key]

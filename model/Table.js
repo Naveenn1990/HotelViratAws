@@ -12,9 +12,15 @@ const tableSchema = new mongoose.Schema({
     required: false, // Optional for backward compatibility
   },
   number: {
-    type: Number,
+    type: String, // Changed from Number to String to support alphanumeric (A1, B2, VIP1)
     required: true,
+    trim: true,
+  },
+  capacity: {
+    type: Number, // Number of people that can sit at this table
+    required: false,
     min: 1,
+    max: 50, // Reasonable maximum
   },
   status: {
     type: String,
