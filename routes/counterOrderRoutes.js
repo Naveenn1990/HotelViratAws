@@ -30,4 +30,7 @@ router.put("/orders/:id/payment-status", counterOrderController.updateCounterPay
 // Cancel order with reason
 router.put("/orders/:id/cancel", counterOrderController.cancelCounterOrder)
 
+// Clear all orders (for testing/cleanup)
+router.delete("/orders/clear-all", counterOrderController.clearAllCounterOrders)
+
 module.exports = router

@@ -51,6 +51,23 @@ const counterOrderSchema = new mongoose.Schema({
     ref: "CounterInvoice",
     required: [true, "Invoice is required"],
   },
+  tableId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Table",
+    default: null,
+  },
+  tableNumber: {
+    type: String,
+    default: null,
+  },
+  kotNumber: {
+    type: String,
+    default: null,
+  },
+  kotTime: {
+    type: Date,
+    default: null,
+  },
   items: [cOrderItemSchema],
   subtotal: {
     type: Number,

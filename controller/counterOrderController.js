@@ -8,7 +8,6 @@ const asyncHandler = require("express-async-handler")
 // Tax and service charge rates (same as staff order)
 const TAX_RATE = 0.05 // 5%
 const SERVICE_CHARGE_RATE = 0.1 // 10%
-
 exports.createCounterOrder = asyncHandler(async (req, res) => {
   const {
     userId,
@@ -131,53 +130,36 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     calculatedSubtotal += item.price * item.quantity
   }
 
-  // Calculate tax and service charges (same as staff order)
-  const calculatedTax = calculatedSubtotal * TAX_RATE
-  const calculatedServiceCharge = calculatedSubtotal * SERVICE_CHARGE_RATE
-  const calculatedTotalAmount = calculatedSubtotal
-  const calculatedGrandTotal = calculatedSubtotal + calculatedTax + calculatedServiceCharge
+  // For counter orders, use provided tax and service charge (allow 0%)
+  // If not provided, default to 0 for counter orders
+  const finalTax = providedTax !== undefined ? providedTax : 0
+  const finalServiceCharge = providedServiceCharge !== undefined ? providedServiceCharge : 0
+  const finalTotalAmount = providedTotalAmount !== undefined ? providedTotalAmount : calculatedSubtotal
+  const finalGrandTotal = providedGrandTotal !== undefined ? providedGrandTotal : calculatedSubtotal + finalTax + finalServiceCharge
 
-  // Validate provided amounts if they exist
+  // Validate subtotal matches calculated
   if (providedSubtotal !== undefined && Math.abs(providedSubtotal - calculatedSubtotal) > 0.01) {
     res.status(400)
     throw new Error(`Subtotal mismatch: provided ₹${providedSubtotal}, calculated ₹${calculatedSubtotal}`)
   }
 
-  if (providedTax !== undefined && Math.abs(providedTax - calculatedTax) > 0.01) {
-    res.status(400)
-    throw new Error(`Tax mismatch: provided ₹${providedTax}, calculated ₹${calculatedTax}`)
-  }
-
-  if (providedServiceCharge !== undefined && Math.abs(providedServiceCharge - calculatedServiceCharge) > 0.01) {
-    res.status(400)
-    throw new Error(
-      `Service charge mismatch: provided ₹${providedServiceCharge}, calculated ₹${calculatedServiceCharge}`,
-    )
-  }
-
-  if (providedTotalAmount !== undefined && Math.abs(providedTotalAmount - calculatedTotalAmount) > 0.01) {
-    res.status(400)
-    throw new Error(`Total amount mismatch: provided ₹${providedTotalAmount}, calculated ₹${calculatedTotalAmount}`)
-  }
-
-  if (providedGrandTotal !== undefined && Math.abs(providedGrandTotal - calculatedGrandTotal) > 0.01) {
-    res.status(400)
-    throw new Error(`Grand total mismatch: provided ₹${providedGrandTotal}, calculated ₹${calculatedGrandTotal}`)
-  }
-
-  // Create order with calculated amounts (same structure as staff order)
+  // Create order with provided or default amounts
   const counterOrder = new CounterOrder({
     userId,
     customerName: customerName.trim(),
     phoneNumber: phoneNumber.trim(),
     branch: branchId,
     invoice: invoiceId,
+    tableId: req.body.tableId || null,
+    tableNumber: req.body.tableNumber || null,
+    kotNumber: req.body.kotNumber || null,
+    kotTime: req.body.kotTime || null,
     items,
     subtotal: calculatedSubtotal,
-    tax: calculatedTax,
-    serviceCharge: calculatedServiceCharge,
-    totalAmount: calculatedTotalAmount,
-    grandTotal: calculatedGrandTotal,
+    tax: finalTax,
+    serviceCharge: finalServiceCharge,
+    totalAmount: finalTotalAmount,
+    grandTotal: finalGrandTotal,
     paymentMethod,
     orderStatus: "processing", // Default order status
     paymentStatus: status || "completed", // Payment status based on payment completion
@@ -213,6 +195,10 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
         id: populatedOrder.invoice._id,
         invoiceNumber: populatedOrder.invoice.invoiceNumber,
       },
+      tableId: populatedOrder.tableId,
+      tableNumber: populatedOrder.tableNumber,
+      kotNumber: populatedOrder.kotNumber,
+      kotTime: populatedOrder.kotTime,
       items: populatedOrder.items,
       subtotal: populatedOrder.subtotal,
       tax: populatedOrder.tax,
@@ -228,7 +214,6 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     },
   })
 })
-
 exports.getCounterOrderById = asyncHandler(async (req, res) => {
   const { id } = req.params
 
@@ -283,7 +268,6 @@ exports.getCounterOrderById = asyncHandler(async (req, res) => {
     },
   })
 })
-
 exports.getAllCounterOrders = asyncHandler(async (req, res) => {
   const counterOrders = await CounterOrder.find()
     .populate("userId", "name mobile")
@@ -326,14 +310,16 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
           id: order.invoice._id,
           invoiceNumber: order.invoice.invoiceNumber,
         },
+        tableId: order.tableId,
+        tableNumber: order.tableNumber,
+        kotNumber: order.kotNumber,
+        kotTime: order.kotTime,
         items: order.items || [],
         subtotal: order.subtotal,
         tax: order.tax,
         serviceCharge: order.serviceCharge,
         totalAmount: order.totalAmount,
-        grandTotal: order.grandTotal,
-        paymentMethod: order.paymentMethod,
-        orderStatus: order.orderStatus,
+        grandTotal: order.grandTStatus,
         paymentStatus: order.paymentStatus,
         cancellationReason: order.cancellationReason,
         cancelledAt: order.cancelledAt,
@@ -348,12 +334,9 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
     orders: formattedOrders,
   })
 })
-
 exports.getCounterOrdersByUserId = asyncHandler(async (req, res) => {
   const { userId } = req.params
-
-  // Validate ObjectId format
-  if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
+if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
     res.status(400)
     throw new Error("Invalid user ID format")
   }
@@ -723,4 +706,21 @@ exports.cancelCounterOrder = asyncHandler(async (req, res) => {
       createdAt: populatedOrder.createdAt,
     },
   })
+})
+
+// Clear all counter orders (for testing/cleanup)
+exports.clearAllCounterOrders = asyncHandler(async (req, res) => {
+  try {
+    // Delete all counter orders
+    const deleteResult = await CounterOrder.deleteMany({})
+    
+    res.status(200).json({
+      message: "All counter orders cleared successfully",
+      deletedCount: deleteResult.deletedCount
+    })
+  } catch (error) {
+    console.error("Error clearing counter orders:", error)
+    res.status(500)
+    throw new Error("Failed to clear counter orders")
+  }
 })
