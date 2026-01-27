@@ -14,6 +14,7 @@ router.get("/", purchaseUserController.getAllUsers) // Add root endpoint
 router.get("/profile/:phoneNumber", purchaseUserController.getUserProfile)
 router.get("/all", purchaseUserController.getAllUsers)
 router.put("/status/:phoneNumber", purchaseUserController.updateUserStatus)
+router.put("/:phoneNumber", purchaseUserController.updateUser)
 router.delete("/:phoneNumber", purchaseUserController.deleteUser)
 
 module.exports = router

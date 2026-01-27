@@ -292,6 +292,75 @@ exports.updateUserStatus = async (req, res) => {
   }
 }
 
+// Update user information
+exports.updateUser = async (req, res) => {
+  try {
+    const { phoneNumber } = req.params
+    const { name, newPhoneNumber } = req.body
+
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Name is required",
+      })
+    }
+
+    if (newPhoneNumber && !/^\d{10}$/.test(newPhoneNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid 10-digit phone number",
+      })
+    }
+
+    // If phone number is being changed, check if new number already exists
+    if (newPhoneNumber && newPhoneNumber !== phoneNumber) {
+      const existingUser = await PurchaseUser.findOne({ phoneNumber: newPhoneNumber })
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "User with this phone number already exists",
+        })
+      }
+    }
+
+    const updateData = {
+      name: name.trim(),
+      ...(newPhoneNumber && { phoneNumber: newPhoneNumber })
+    }
+
+    const user = await PurchaseUser.findOneAndUpdate(
+      { phoneNumber }, 
+      updateData, 
+      { new: true }
+    )
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user: {
+        id: user._id,
+        phoneNumber: user.phoneNumber,
+        name: user.name,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+      },
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error updating user",
+      error: error.message,
+    })
+  }
+}
+
 // Delete user
 exports.deleteUser = async (req, res) => {
   try {
