@@ -6,7 +6,7 @@ const invoiceSchema = new mongoose.Schema({
     required: [true, 'Invoice number is required'],
     unique: true,
     trim: true,
-    minlength: [8, 'Invoice number must be at least 8 characters long'],
+    // Removed minlength constraint to allow 2-digit bill numbers
   },
   customerName: {
     type: String,

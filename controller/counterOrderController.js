@@ -47,10 +47,11 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     throw new Error("Branch is required")
   }
 
-  if (!invoiceId) {
-    res.status(400)
-    throw new Error("Invoice is required")
-  }
+  // Make invoiceId optional for KOT orders - they can be created without invoice initially
+  // if (!invoiceId) {
+  //   res.status(400)
+  //   throw new Error("Invoice is required")
+  // }
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400)
@@ -82,13 +83,17 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
 
   // Verify invoice exists (optional - allow orders even if invoice not found)
   let invoice = null
-  try {
-    invoice = await CounterInvoice.findById(invoiceId)
-    if (!invoice) {
-      console.log(`Invoice ${invoiceId} not found, proceeding with order anyway`)
+  if (invoiceId) {
+    try {
+      invoice = await CounterInvoice.findById(invoiceId)
+      if (!invoice) {
+        console.log(`Invoice ${invoiceId} not found, proceeding with order anyway`)
+      }
+    } catch (err) {
+      console.log(`Error finding invoice: ${err.message}, proceeding with order anyway`)
     }
-  } catch (err) {
-    console.log(`Error finding invoice: ${err.message}, proceeding with order anyway`)
+  } else {
+    console.log('No invoiceId provided, creating order without invoice reference')
   }
 
   // Calculate subtotal and validate items
@@ -149,11 +154,12 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     customerName: customerName.trim(),
     phoneNumber: phoneNumber.trim(),
     branch: branchId,
-    invoice: invoiceId,
+    invoice: invoiceId || null, // Make invoice optional
     tableId: req.body.tableId || null,
     tableNumber: req.body.tableNumber || null,
     kotNumber: req.body.kotNumber || null,
     kotTime: req.body.kotTime || null,
+    invoiceNumber: req.body.invoiceNumber || null, // Add invoiceNumber field
     items,
     subtotal: calculatedSubtotal,
     tax: finalTax,
@@ -191,14 +197,15 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
         name: populatedOrder.branch.name,
         location: populatedOrder.branch.address,
       },
-      invoice: {
+      invoice: populatedOrder.invoice ? {
         id: populatedOrder.invoice._id,
         invoiceNumber: populatedOrder.invoice.invoiceNumber,
-      },
+      } : null,
       tableId: populatedOrder.tableId,
       tableNumber: populatedOrder.tableNumber,
       kotNumber: populatedOrder.kotNumber,
       kotTime: populatedOrder.kotTime,
+      invoiceNumber: populatedOrder.invoiceNumber, // ADD: Include invoiceNumber in response
       items: populatedOrder.items,
       subtotal: populatedOrder.subtotal,
       tax: populatedOrder.tax,
@@ -249,10 +256,10 @@ exports.getCounterOrderById = asyncHandler(async (req, res) => {
         name: counterOrder.branch.name,
         location: counterOrder.branch.address,
       },
-      invoice: {
+      invoice: counterOrder.invoice ? {
         id: counterOrder.invoice._id,
         invoiceNumber: counterOrder.invoice.invoiceNumber,
-      },
+      } : null,
       items: counterOrder.items,
       subtotal: counterOrder.subtotal,
       tax: counterOrder.tax,
@@ -286,8 +293,8 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
   // Add null checks to prevent undefined errors
   const formattedOrders = counterOrders
     .map((order) => {
-      // Check if all required populated fields exist
-      if (!order.userId || !order.branch || !order.invoice) {
+      // Check if required populated fields exist (invoice is optional for KOT orders)
+      if (!order.userId || !order.branch) {
         console.warn(`Order ${order._id} has missing populated references`)
         return null
       }
@@ -306,20 +313,21 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
           name: order.branch.name,
           location: order.branch.address,
         },
-        invoice: {
+        invoice: order.invoice ? {
           id: order.invoice._id,
           invoiceNumber: order.invoice.invoiceNumber,
-        },
+        } : null,
         tableId: order.tableId,
         tableNumber: order.tableNumber,
         kotNumber: order.kotNumber,
         kotTime: order.kotTime,
+        invoiceNumber: order.invoiceNumber, // ADD: Include invoiceNumber in response
         items: order.items || [],
         subtotal: order.subtotal,
         tax: order.tax,
         serviceCharge: order.serviceCharge,
         totalAmount: order.totalAmount,
-        grandTotal: order.grandTStatus,
+        grandTotal: order.grandTotal, // FIXED: was order.grandTStatus
         paymentStatus: order.paymentStatus,
         cancellationReason: order.cancellationReason,
         cancelledAt: order.cancelledAt,
@@ -369,10 +377,15 @@ if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
       name: order.branch.name,
       location: order.branch.address,
     },
-    invoice: {
+    invoice: order.invoice ? {
       id: order.invoice._id,
       invoiceNumber: order.invoice.invoiceNumber,
-    },
+    } : null,
+    tableId: order.tableId,
+    tableNumber: order.tableNumber,
+    kotNumber: order.kotNumber,
+    kotTime: order.kotTime,
+    invoiceNumber: order.invoiceNumber, // ADD: Include invoiceNumber in response
     items: order.items || [],
     subtotal: order.subtotal,
     tax: order.tax,
@@ -455,10 +468,12 @@ exports.updateCounterOrder = asyncHandler(async (req, res) => {
         name: populatedOrder.branch.name,
         location: populatedOrder.branch.address,
       },
-      invoice: {
-        id: populatedOrder.invoice._id,
-        invoiceNumber: populatedOrder.invoice.invoiceNumber,
-      },
+      invoice: populatedOrder.invoice ? { id: populatedOrder.invoice._id, invoiceNumber: populatedOrder.invoice.invoiceNumber, } : null,
+      tableId: populatedOrder.tableId,
+      tableNumber: populatedOrder.tableNumber,
+      kotNumber: populatedOrder.kotNumber,
+      kotTime: populatedOrder.kotTime,
+      invoiceNumber: populatedOrder.invoiceNumber, // ADD: Include invoiceNumber in response
       items: populatedOrder.items,
       subtotal: populatedOrder.subtotal,
       tax: populatedOrder.tax,
@@ -528,10 +543,12 @@ exports.updateCounterOrderStatus = asyncHandler(async (req, res) => {
         name: populatedOrder.branch.name,
         location: populatedOrder.branch.address,
       },
-      invoice: {
-        id: populatedOrder.invoice._id,
-        invoiceNumber: populatedOrder.invoice.invoiceNumber,
-      },
+      invoice: populatedOrder.invoice ? { id: populatedOrder.invoice._id, invoiceNumber: populatedOrder.invoice.invoiceNumber, } : null,
+      tableId: populatedOrder.tableId,
+      tableNumber: populatedOrder.tableNumber,
+      kotNumber: populatedOrder.kotNumber,
+      kotTime: populatedOrder.kotTime,
+      invoiceNumber: populatedOrder.invoiceNumber, // ADD: Include invoiceNumber in response
       items: populatedOrder.items,
       subtotal: populatedOrder.subtotal,
       tax: populatedOrder.tax,
@@ -559,9 +576,9 @@ exports.updateCounterPaymentStatus = asyncHandler(async (req, res) => {
     throw new Error("Invalid order ID format")
   }
 
-  if (!paymentStatus || !["pending", "completed", "failed", "refunded"].includes(paymentStatus)) {
+  if (!paymentStatus || !["pending", "completed", "failed", "refunded", "consolidated"].includes(paymentStatus)) {
     res.status(400)
-    throw new Error("Invalid payment status. Must be one of: pending, completed, failed, refunded")
+    throw new Error("Invalid payment status. Must be one of: pending, completed, failed, refunded, consolidated")
   }
 
   const counterOrder = await CounterOrder.findById(id)
@@ -601,10 +618,12 @@ exports.updateCounterPaymentStatus = asyncHandler(async (req, res) => {
         name: populatedOrder.branch.name,
         location: populatedOrder.branch.address,
       },
-      invoice: {
-        id: populatedOrder.invoice._id,
-        invoiceNumber: populatedOrder.invoice.invoiceNumber,
-      },
+      invoice: populatedOrder.invoice ? { id: populatedOrder.invoice._id, invoiceNumber: populatedOrder.invoice.invoiceNumber, } : null,
+      tableId: populatedOrder.tableId,
+      tableNumber: populatedOrder.tableNumber,
+      kotNumber: populatedOrder.kotNumber,
+      kotTime: populatedOrder.kotTime,
+      invoiceNumber: populatedOrder.invoiceNumber, // ADD: Include invoiceNumber in response
       items: populatedOrder.items,
       subtotal: populatedOrder.subtotal,
       tax: populatedOrder.tax,
@@ -688,10 +707,12 @@ exports.cancelCounterOrder = asyncHandler(async (req, res) => {
         name: populatedOrder.branch.name,
         location: populatedOrder.branch.address,
       },
-      invoice: {
-        id: populatedOrder.invoice._id,
-        invoiceNumber: populatedOrder.invoice.invoiceNumber,
-      },
+      invoice: populatedOrder.invoice ? { id: populatedOrder.invoice._id, invoiceNumber: populatedOrder.invoice.invoiceNumber, } : null,
+      tableId: populatedOrder.tableId,
+      tableNumber: populatedOrder.tableNumber,
+      kotNumber: populatedOrder.kotNumber,
+      kotTime: populatedOrder.kotTime,
+      invoiceNumber: populatedOrder.invoiceNumber, // ADD: Include invoiceNumber in response
       items: populatedOrder.items,
       subtotal: populatedOrder.subtotal,
       tax: populatedOrder.tax,
@@ -724,3 +745,4 @@ exports.clearAllCounterOrders = asyncHandler(async (req, res) => {
     throw new Error("Failed to clear counter orders")
   }
 })
+

@@ -49,7 +49,8 @@ const counterOrderSchema = new mongoose.Schema({
   invoice: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "CounterInvoice",
-    required: [true, "Invoice is required"],
+    required: false, // Make optional for KOT orders
+    default: null,
   },
   tableId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -66,6 +67,47 @@ const counterOrderSchema = new mongoose.Schema({
   },
   kotTime: {
     type: Date,
+    default: null,
+  },
+  invoiceNumber: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+    min: [0, "Discount amount cannot be negative"],
+  },
+  discount: {
+    type: {
+      type: String,
+      enum: ["percentage", "amount"],
+    },
+    value: {
+      type: Number,
+      min: [0, "Discount value cannot be negative"],
+    },
+    amount: {
+      type: Number,
+      min: [0, "Discount amount cannot be negative"],
+    },
+    remark: {
+      type: String,
+      trim: true,
+    },
+  },
+  isComprehensiveBill: {
+    type: Boolean,
+    default: false,
+  },
+  originalKOTIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "CounterOrder",
+  }],
+  consolidatedOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "CounterOrder",
     default: null,
   },
   items: [cOrderItemSchema],
@@ -108,7 +150,7 @@ const counterOrderSchema = new mongoose.Schema({
   paymentStatus: {
     type: String,
     required: [true, "Payment status is required"],
-    enum: ["pending", "completed", "failed", "refunded"],
+    enum: ["pending", "completed", "failed", "refunded", "consolidated"],
     default: "pending",
   },
   cancellationReason: {
