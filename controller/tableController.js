@@ -77,16 +77,16 @@ const updateTable = asyncHandler(async (req, res) => {
   }
 
   const { branchId, categoryId, number, capacity, status } = req.body;
-  const updateData = { branchId, categoryId, number, status };
+  const updateData = {};
   
-  if (capacity) {
-    updateData.capacity = parseInt(capacity);
-  }
+  // Only include fields that are provided
+  if (branchId !== undefined) updateData.branchId = branchId;
+  if (categoryId !== undefined) updateData.categoryId = categoryId;
+  if (number !== undefined) updateData.number = number;
+  if (status !== undefined) updateData.status = status;
+  if (capacity !== undefined) updateData.capacity = parseInt(capacity);
 
-  Object.keys(updateData).forEach(key => 
-    updateData[key] === undefined && delete updateData[key]
-  );
-
+  // Handle image upload
   if (req.file) {
     updateData.image = await uploadFile2(req.file, 'table');
 
@@ -96,6 +96,7 @@ const updateTable = asyncHandler(async (req, res) => {
     }
   }
 
+  // Only validate branchId if it's being updated
   if (updateData.branchId) {
     const branch = await Branch.findById(updateData.branchId);
     if (!branch) {

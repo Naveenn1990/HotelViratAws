@@ -1,6 +1,7 @@
 const CounterBill = require("../model/counterBillModel")
 const CounterOrder = require("../model/counterOrderModel")
 const CounterInvoice = require("../model/counterInvoiceModel")
+const ComplimentaryTracking = require("../model/complimentaryTrackingModel")
 const Branch = require("../model/Branch")
 const Menu = require("../model/menuModel")
 const Counter = require("../model/counterLoginModel")
@@ -8,6 +9,42 @@ const asyncHandler = require("express-async-handler")
 
 const TAX_RATE = 0.05 // 5%
 const SERVICE_CHARGE_RATE = 0.1 // 10%
+
+// Helper function to track complimentary bills for day-wise statistics
+const trackComplimentaryBill = async (branchId, date, billData) => {
+  try {
+    // Convert DD/MM/YYYY to YYYY-MM-DD for consistent storage
+    const [day, month, year] = date.split('/')
+    const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+
+    // Find or create complimentary tracking record for the day
+    let tracking = await ComplimentaryTracking.findOne({
+      branchId: branchId,
+      date: formattedDate,
+    })
+
+    if (!tracking) {
+      tracking = new ComplimentaryTracking({
+        branchId: branchId,
+        date: formattedDate,
+        totalComplimentaryBills: 0,
+        totalComplimentaryAmount: 0,
+        complimentaryBills: [],
+      })
+    }
+
+    // Add the bill to tracking
+    tracking.complimentaryBills.push(billData)
+    tracking.totalComplimentaryBills += 1
+    tracking.totalComplimentaryAmount += billData.amount
+
+    await tracking.save()
+    console.log(`✅ Complimentary bill tracked for ${formattedDate}:`, billData)
+  } catch (error) {
+    console.error('❌ Error tracking complimentary bill:', error)
+    // Don't throw error to avoid breaking bill creation
+  }
+}
 
 exports.createCounterBill = asyncHandler(async (req, res) => {
   const {
@@ -25,6 +62,8 @@ exports.createCounterBill = asyncHandler(async (req, res) => {
     grandTotal,
     date,
     time,
+    isComplimentary = false,
+    complimentaryReason = null,
   } = req.body
 
   // Input validation
@@ -197,9 +236,30 @@ exports.createCounterBill = asyncHandler(async (req, res) => {
     grandTotal,
     date,
     time,
+    isComplimentary,
+    complimentaryReason,
   })
 
   await counterBill.save()
+
+  // Update counter order with complimentary status
+  if (isComplimentary) {
+    await CounterOrder.findByIdAndUpdate(orderId, {
+      isComplimentary: true,
+      complimentaryReason: complimentaryReason,
+    })
+
+    // Track complimentary bill for day-wise statistics
+    await trackComplimentaryBill(branchId, date, {
+      billId: counterBill._id,
+      orderId: orderId,
+      customerName,
+      amount: grandTotal,
+      reason: complimentaryReason,
+      time,
+      invoiceNumber: invoice.invoiceNumber,
+    })
+  }
 
   const populatedBill = await CounterBill.findById(counterBill._id)
     .populate("userId", "name mobile")
@@ -325,7 +385,7 @@ exports.getCounterBillById = asyncHandler(async (req, res) => {
 })
 
 exports.listCounterBills = asyncHandler(async (req, res) => {
-  const { branchId, customerName, phoneNumber, startDate, endDate } = req.query
+  const { branchId, customerName, phoneNumber, startDate, endDate, includeComplimentary = false } = req.query
   const query = {}
 
   if (branchId) query.branch = branchId
@@ -333,6 +393,11 @@ exports.listCounterBills = asyncHandler(async (req, res) => {
   if (phoneNumber) query.phoneNumber = phoneNumber
   if (startDate && endDate) {
     query.date = { $gte: startDate, $lte: endDate }
+  }
+
+  // Exclude complimentary bills from sales reports unless explicitly requested
+  if (!includeComplimentary || includeComplimentary === 'false') {
+    query.isComplimentary = { $ne: true }
   }
 
   const counterBills = await CounterBill.find(query)
@@ -388,6 +453,8 @@ exports.listCounterBills = asyncHandler(async (req, res) => {
         grandTotal: bill.grandTotal,
         date: bill.date,
         time: bill.time,
+        isComplimentary: bill.isComplimentary || false,
+        complimentaryReason: bill.complimentaryReason,
         createdAt: bill.createdAt,
       }
     })
@@ -397,5 +464,50 @@ exports.listCounterBills = asyncHandler(async (req, res) => {
     message: "Counter bills retrieved successfully",
     count: formattedBills.length,
     bills: formattedBills,
+  })
+})
+
+// Get complimentary bills statistics for a specific date range
+exports.getComplimentaryStats = asyncHandler(async (req, res) => {
+  const { branchId, startDate, endDate } = req.query
+
+  if (!branchId) {
+    res.status(400)
+    throw new Error("Branch ID is required")
+  }
+
+  const query = { branchId }
+
+  if (startDate && endDate) {
+    query.date = { $gte: startDate, $lte: endDate }
+  } else {
+    // Default to today if no date range provided
+    const today = new Date().toISOString().split('T')[0]
+    query.date = today
+  }
+
+  const complimentaryStats = await ComplimentaryTracking.find(query)
+    .populate("branchId", "name address")
+    .sort({ date: -1 })
+
+  const totalStats = complimentaryStats.reduce(
+    (acc, stat) => {
+      acc.totalBills += stat.totalComplimentaryBills
+      acc.totalAmount += stat.totalComplimentaryAmount
+      return acc
+    },
+    { totalBills: 0, totalAmount: 0 }
+  )
+
+  res.status(200).json({
+    message: "Complimentary statistics retrieved successfully",
+    totalStats,
+    dailyStats: complimentaryStats.map(stat => ({
+      date: stat.date,
+      totalBills: stat.totalComplimentaryBills,
+      totalAmount: stat.totalComplimentaryAmount,
+      bills: stat.complimentaryBills,
+      branch: stat.branchId,
+    })),
   })
 })

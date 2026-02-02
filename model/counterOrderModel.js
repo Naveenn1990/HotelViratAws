@@ -136,6 +136,15 @@ const counterOrderSchema = new mongoose.Schema({
     required: true,
     min: [0, "Grand total cannot be negative"],
   },
+  isComplimentary: {
+    type: Boolean,
+    default: false,
+  },
+  complimentaryReason: {
+    type: String,
+    trim: true,
+    default: null,
+  },
   paymentMethod: {
     type: String,
     required: [true, "Payment method is required"],

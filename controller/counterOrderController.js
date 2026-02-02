@@ -18,6 +18,8 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     items,
     paymentMethod,
     status,
+    isComplimentary = false,
+    complimentaryReason = null,
     // Optional: allow frontend to send these, but we'll calculate them
     subtotal: providedSubtotal,
     tax: providedTax,
@@ -166,6 +168,8 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     serviceCharge: finalServiceCharge,
     totalAmount: finalTotalAmount,
     grandTotal: finalGrandTotal,
+    isComplimentary,
+    complimentaryReason,
     paymentMethod,
     orderStatus: "processing", // Default order status
     paymentStatus: status || "completed", // Payment status based on payment completion
@@ -276,7 +280,15 @@ exports.getCounterOrderById = asyncHandler(async (req, res) => {
   })
 })
 exports.getAllCounterOrders = asyncHandler(async (req, res) => {
-  const counterOrders = await CounterOrder.find()
+  const { includeComplimentary = false } = req.query
+  
+  // Build query to exclude complimentary orders from sales reports unless explicitly requested
+  const query = {}
+  if (!includeComplimentary || includeComplimentary === 'false') {
+    query.isComplimentary = { $ne: true }
+  }
+
+  const counterOrders = await CounterOrder.find(query)
     .populate("userId", "name mobile")
     .populate("branch", "name address")
     .populate("invoice", "invoiceNumber")
@@ -328,7 +340,11 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
         serviceCharge: order.serviceCharge,
         totalAmount: order.totalAmount,
         grandTotal: order.grandTotal, // FIXED: was order.grandTStatus
+        paymentMethod: order.paymentMethod,
+        orderStatus: order.orderStatus,
         paymentStatus: order.paymentStatus,
+        isComplimentary: order.isComplimentary || false,
+        complimentaryReason: order.complimentaryReason,
         cancellationReason: order.cancellationReason,
         cancelledAt: order.cancelledAt,
         createdAt: order.createdAt,

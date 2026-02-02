@@ -82,6 +82,15 @@ const counterBillSchema = new mongoose.Schema({
     required: [true, "Grand total is required"],
     min: [0, "Grand total cannot be negative"],
   },
+  isComplimentary: {
+    type: Boolean,
+    default: false,
+  },
+  complimentaryReason: {
+    type: String,
+    trim: true,
+    default: null,
+  },
   date: {
     type: String,
     required: [true, "Date is required"],

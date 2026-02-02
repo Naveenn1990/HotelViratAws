@@ -24,7 +24,7 @@ const tableSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['available', 'reserved'],
+    enum: ['available', 'reserved', 'occupied'], // Added 'occupied' for table shift functionality
     default: 'available',
     required: true,
   },
