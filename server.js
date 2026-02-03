@@ -147,6 +147,12 @@ const roomRoutes = require("./routes/roomRoutes");
 const roomBookingRoutes = require("./routes/roomBookingRoutes");
 const categoryAccessRoutes = require("./routes/categoryAccessRoutes");
 const receptionistAccessRoutes = require("./routes/receptionistAccessRoutes");
+
+// Bill Reset Routes
+const billResetRoutes = require("./routes/billResetRoutes");
+
+// Website Routes
+const websiteRoutes = require("./routes/websiteRoutes");
 //construction
 /* const roleRoutes = require('./routes/roleRoutes');
 const configurationRoutes = require('./routes/configurationRoutes');
@@ -224,6 +230,13 @@ app.use("/api/v1/hotel/room", roomRoutes);
 app.use("/api/v1/hotel/room-booking", roomBookingRoutes);
 app.use("/api/v1/hotel/category-access", categoryAccessRoutes);
 app.use("/api/v1/hotel/receptionist-access", receptionistAccessRoutes);
+
+// Bill Reset Routes
+app.use("/api/v1/hotel/bill-reset", billResetRoutes);
+
+// Website Routes
+app.use("/api/website", websiteRoutes);
+
 app.use(express.static(path.join(__dirname, 'build')));
 // Redirect all requests to the index.html file (except API and uploads)
 app.get('*', (req, res, next) => {

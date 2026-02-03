@@ -7,11 +7,10 @@ const { uploadFile2, deleteFile } = require('../middleware/AWS');
 
 const createTable = asyncHandler(async (req, res) => {
   if (!req.body) {
-    res.status(400);
+    res.status(400);b 
     throw new Error('Request body is missing');
-  }
-
-  console.log('Create table request body:', req.body);
+  } 
+    console.log('Create table request body:', req.body);
   const { branchId, categoryId, number, capacity, status } = req.body;
   const image = req.file ? await uploadFile2(req.file,'table') : null;
 
