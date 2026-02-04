@@ -9,11 +9,22 @@ const asyncHandler = require("express-async-handler")
 const TAX_RATE = 0.05 // 5%
 const SERVICE_CHARGE_RATE = 0.1 // 10%
 exports.createCounterOrder = asyncHandler(async (req, res) => {
+  console.log('🚀 COUNTER ORDER CONTROLLER: createCounterOrder called');
+  console.log('📦 Request body keys:', Object.keys(req.body));
+  console.log('📦 Category info from request:', {
+    branchName: req.body.branchName,
+    categoryId: req.body.categoryId,
+    categoryName: req.body.categoryName
+  });
+  
   const {
     userId,
     customerName,
     phoneNumber,
     branchId,
+    branchName,
+    categoryId,
+    categoryName,
     invoiceId,
     items,
     paymentMethod,
@@ -156,6 +167,9 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     customerName: customerName.trim(),
     phoneNumber: phoneNumber.trim(),
     branch: branchId,
+    branchName: branchName || null,
+    categoryId: categoryId || null,
+    categoryName: categoryName || null,
     invoice: invoiceId || null, // Make invoice optional
     tableId: req.body.tableId || null,
     tableNumber: req.body.tableNumber || null,
@@ -176,7 +190,15 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
   })
 
   // Save to database
+  console.log('💾 Saving counter order with category info:', {
+    categoryName: counterOrder.categoryName,
+    branchName: counterOrder.branchName,
+    categoryId: counterOrder.categoryId
+  });
+  
   await counterOrder.save()
+  
+  console.log('✅ Counter order saved successfully with category:', counterOrder.categoryName);
 
   // Populate related data
   const populatedOrder = await CounterOrder.findById(counterOrder._id)

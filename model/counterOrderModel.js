@@ -46,6 +46,21 @@ const counterOrderSchema = new mongoose.Schema({
     ref: "Branch",
     required: [true, "Branch is required"],
   },
+  branchName: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  categoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Category",
+    default: null,
+  },
+  categoryName: {
+    type: String,
+    trim: true,
+    default: null,
+  },
   invoice: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "CounterInvoice",
