@@ -302,6 +302,118 @@ const getBookingStats = asyncHandler(async (req, res) => {
   }
 });
 
+// Create Walk-in Booking (same as regular booking but for walk-in customers)
+const createWalkInBooking = asyncHandler(async (req, res) => {
+  try {
+    console.log("=== CREATE WALK-IN BOOKING ===");
+    console.log("Request body:", req.body);
+
+    const {
+      roomId,
+      guestName,
+      guestEmail,
+      guestPhone,
+      checkInDate,
+      checkOutDate,
+      adults,
+      children,
+      specialRequests,
+      totalAmount,
+      status = "confirmed" // Walk-in bookings are typically confirmed immediately
+    } = req.body;
+
+    // Validate required fields
+    if (!roomId || !guestName || !checkInDate || !checkOutDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Room ID, guest name, email, check-in/out dates, and total amount are required"
+      });
+    }
+
+    // Validate dates
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+
+    if (checkOut <= checkIn) {
+      return res.status(400).json({
+        success: false,
+        message: "Check-out date must be after check-in date"
+      });
+    }
+
+    // Check if room exists
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: "Room not found"
+      });
+    }
+
+    // Check for conflicting bookings
+    const conflictingBookings = await RoomBooking.find({
+      roomId: roomId,
+      status: { $in: ["confirmed", "checked-in"] },
+      $or: [
+        {
+          checkInDate: { $lt: checkOut },
+          checkOutDate: { $gt: checkIn }
+        }
+      ]
+    });
+
+    if (conflictingBookings.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Room is not available for the selected dates",
+        conflictingBookings: conflictingBookings.map(booking => ({
+          id: booking._id,
+          checkIn: booking.checkInDate,
+          checkOut: booking.checkOutDate,
+          guestName: booking.guestName
+        }))
+      });
+    }
+
+    // Create the walk-in booking
+    const booking = new RoomBooking({
+      roomId,
+      guestName,
+      guestEmail: guestEmail || `walkin_${Date.now()}@hotel.com`, // Default email for walk-ins
+      guestPhone: guestPhone || "N/A",
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+      adults: adults || 1,
+      children: children || 0,
+      specialRequests: specialRequests || "",
+      totalAmount,
+      status,
+      bookingType: "walk-in", // Mark as walk-in booking
+      createdAt: new Date()
+    });
+
+    const savedBooking = await booking.save();
+    
+    // Populate room details
+    await savedBooking.populate('roomId');
+
+    console.log("Walk-in booking created successfully:", savedBooking._id);
+
+    res.status(201).json({
+      success: true,
+      message: "Walk-in booking created successfully",
+      booking: savedBooking
+    });
+
+  } catch (error) {
+    console.error("Error creating walk-in booking:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create walk-in booking"
+    });
+  }
+});
+
 module.exports = {
   createRoomBooking,
   getRoomBookings,
@@ -309,4 +421,5 @@ module.exports = {
   updateRoomBooking,
   deleteRoomBooking,
   getBookingStats,
+  createWalkInBooking,
 };

@@ -28,7 +28,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 10 * 1024 * 1024 // Increased to 10MB limit
   },
   fileFilter: function (req, file, cb) {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
@@ -38,7 +38,7 @@ const upload = multer({
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error('Only image files are allowed (JPEG, JPG, PNG, GIF, WebP)'));
     }
   }
 });
@@ -64,7 +64,40 @@ router.get('/carousel', async (req, res) => {
 });
 
 // Add new carousel image
-router.post('/carousel', upload.single('image'), async (req, res) => {
+router.post('/carousel', (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Multer error:', err);
+      
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'File too large. Maximum size allowed is 10MB.',
+            error: 'File size exceeds limit'
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'File upload error: ' + err.message,
+          error: err.code
+        });
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+        error: 'Upload error'
+      });
+    }
+    
+    // Continue with the actual add logic
+    handleCarouselAdd(req, res);
+  });
+});
+
+// Separate function to handle adding new carousel images
+async function handleCarouselAdd(req, res) {
   try {
     console.log('Received carousel POST request:');
     console.log('Body:', req.body);
@@ -78,12 +111,19 @@ router.post('/carousel', upload.single('image'), async (req, res) => {
         message: 'Image file is required'
       });
     }
+    
+    if (!title || title.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Title is required'
+      });
+    }
 
     const imageUrl = `/uploads/website/${req.file.filename}`;
     
     const newImage = new CarouselImage({
-      title: title || '',
-      description: description || '',
+      title: title.trim(),
+      description: description ? description.trim() : '',
       imageUrl: imageUrl,
       order: parseInt(order) || 0,
       isActive: isActive === 'true' || isActive === true
@@ -98,39 +138,115 @@ router.post('/carousel', upload.single('image'), async (req, res) => {
     });
   } catch (error) {
     console.error('Error adding carousel image:', error);
+    
+    // Handle specific mongoose validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error: ' + Object.values(error.errors).map(e => e.message).join(', '),
+        error: error.message
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Failed to add carousel image',
       error: error.message
     });
   }
-});
+}
 
 // Update carousel image
-router.put('/carousel/:id', upload.single('image'), async (req, res) => {
+router.put('/carousel/:id', (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Multer error:', err);
+      
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'File too large. Maximum size allowed is 10MB.',
+            error: 'File size exceeds limit'
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'File upload error: ' + err.message,
+          error: err.code
+        });
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+        error: 'Upload error'
+      });
+    }
+    
+    // Continue with the actual update logic
+    handleCarouselUpdate(req, res);
+  });
+});
+
+// Separate function to handle the actual carousel update logic
+async function handleCarouselUpdate(req, res) {
   try {
     const { id } = req.params;
     const { title, description, order, isActive } = req.body;
     
-    const updateData = {
-      title: title || '',
-      description: description || '',
-      order: parseInt(order) || 0,
-      isActive: isActive === 'true' || isActive === true
-    };
-
-    if (req.file) {
-      updateData.imageUrl = `/uploads/website/${req.file.filename}`;
-    }
-
-    const updatedImage = await CarouselImage.findByIdAndUpdate(id, updateData, { new: true });
+    console.log('Updating carousel image:', id);
+    console.log('Request body:', req.body);
+    console.log('File uploaded:', req.file ? req.file.filename : 'No new file');
     
-    if (!updatedImage) {
+    // Validate ObjectId
+    if (!id || !id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid carousel image ID'
+      });
+    }
+    
+    // First, get the existing image to preserve imageUrl if no new file
+    const existingImage = await CarouselImage.findById(id);
+    if (!existingImage) {
       return res.status(404).json({
         success: false,
         message: 'Carousel image not found'
       });
     }
+    
+    // Validate required fields
+    if (!title || title.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Title is required'
+      });
+    }
+    
+    const updateData = {
+      title: title.trim(),
+      description: description ? description.trim() : existingImage.description,
+      order: parseInt(order) || existingImage.order || 0,
+      isActive: isActive === 'true' || isActive === true
+    };
+
+    // Only update imageUrl if a new file is uploaded
+    if (req.file) {
+      updateData.imageUrl = `/uploads/website/${req.file.filename}`;
+      console.log('New image URL:', updateData.imageUrl);
+    } else {
+      // Preserve existing imageUrl (required field)
+      updateData.imageUrl = existingImage.imageUrl;
+      console.log('Preserving existing image URL:', updateData.imageUrl);
+    }
+
+    const updatedImage = await CarouselImage.findByIdAndUpdate(id, updateData, { 
+      new: true,
+      runValidators: true 
+    });
+    
+    console.log('Image updated successfully:', updatedImage._id);
 
     res.json({
       success: true,
@@ -139,13 +255,23 @@ router.put('/carousel/:id', upload.single('image'), async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating carousel image:', error);
+    
+    // Handle specific mongoose validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error: ' + Object.values(error.errors).map(e => e.message).join(', '),
+        error: error.message
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Failed to update carousel image',
       error: error.message
     });
   }
-});
+}
 
 // Delete carousel image
 router.delete('/carousel/:id', async (req, res) => {
