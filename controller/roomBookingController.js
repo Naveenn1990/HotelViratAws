@@ -97,7 +97,8 @@ const createRoomBooking = asyncHandler(async (req, res) => {
       children: parseInt(children) || 0,
       specialRequests: specialRequests ? specialRequests.trim() : '',
       totalAmount: Number(totalAmount),
-      status: status || 'pending'
+      status: status || 'pending',
+      ...req.body
     });
 
     const createdBooking = await booking.save();
@@ -319,6 +320,7 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
       children,
       specialRequests,
       totalAmount,
+      payments,
       status = "confirmed" // Walk-in bookings are typically confirmed immediately
     } = req.body;
 
@@ -386,10 +388,12 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
       adults: adults || 1,
       children: children || 0,
       specialRequests: specialRequests || "",
-      totalAmount,
+     totalAmount: totalAmount,
       status,
       bookingType: "walk-in", // Mark as walk-in booking
-      createdAt: new Date()
+      createdAt: new Date(),
+      payments:payments,
+      ...req.body
     });
 
     const savedBooking = await booking.save();
