@@ -302,13 +302,64 @@ exports.getCounterOrderById = asyncHandler(async (req, res) => {
   })
 })
 exports.getAllCounterOrders = asyncHandler(async (req, res) => {
-  const { includeComplimentary = false } = req.query
+  const { 
+    includeComplimentary = false, 
+    startDate, 
+    endDate, 
+    date 
+  } = req.query
+  
+  console.log('📅 Date filter params:', { startDate, endDate, date });
   
   // Build query to exclude complimentary orders from sales reports unless explicitly requested
   const query = {}
   if (!includeComplimentary || includeComplimentary === 'false') {
     query.isComplimentary = { $ne: true }
   }
+
+  // Add date filtering
+  if (date) {
+    // Single date filter - filter for orders on specific date
+    const filterDate = new Date(date);
+    const startOfDay = new Date(filterDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(filterDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    query.createdAt = {
+      $gte: startOfDay,
+      $lte: endOfDay
+    };
+    
+    console.log('📅 Single date filter applied:', {
+      date: date,
+      startOfDay: startOfDay,
+      endOfDay: endOfDay
+    });
+  } else if (startDate || endDate) {
+    // Date range filter
+    query.createdAt = {};
+    
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      query.createdAt.$gte = start;
+    }
+    
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt.$lte = end;
+    }
+    
+    console.log('📅 Date range filter applied:', {
+      startDate: startDate,
+      endDate: endDate,
+      query: query.createdAt
+    });
+  }
+
+  console.log('🔍 Final query:', query);
 
   const counterOrders = await CounterOrder.find(query)
     .populate("userId", "name mobile")
@@ -317,9 +368,12 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
     .populate("items.menuItemId", "name")
     .sort({ createdAt: -1 })
 
+  console.log('📊 Found orders after date filter:', counterOrders.length);
+
   if (!counterOrders || counterOrders.length === 0) {
     return res.status(200).json({
       message: "No counter orders found",
+      data: [],
       orders: [],
     })
   }
@@ -356,6 +410,9 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
         kotNumber: order.kotNumber,
         kotTime: order.kotTime,
         invoiceNumber: order.invoiceNumber, // ADD: Include invoiceNumber in response
+        categoryName: order.categoryName, // ADD: Include categoryName for filtering
+        categoryId: order.categoryId, // ADD: Include categoryId for filtering
+        branchName: order.branchName, // ADD: Include branchName for filtering
         items: order.items || [],
         subtotal: order.subtotal,
         tax: order.tax,
@@ -370,13 +427,17 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
         cancellationReason: order.cancellationReason,
         cancelledAt: order.cancelledAt,
         createdAt: order.createdAt,
+        orderDate: order.createdAt, // ADD: Alias for compatibility
       }
     })
     .filter((order) => order !== null) // Remove any null entries
 
+  console.log('✅ Returning formatted orders:', formattedOrders.length);
+
   res.status(200).json({
     message: "Counter orders retrieved successfully",
     count: formattedOrders.length,
+    data: formattedOrders, // ADD: Include data field for compatibility
     orders: formattedOrders,
   })
 })

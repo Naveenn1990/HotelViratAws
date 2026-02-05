@@ -1,50 +1,104 @@
 const express = require("express");
 const router = express.Router();
 const {
+  createBooking,
+  createWalkInBooking,
+  getBookings,
+  getBookingById,
+  getRoomActiveBooking,
+  getRoomBookedTimeSlots,
+  updateBookingStatus,
+  updatePayment,
+  cancelBooking,
+  requestCancellation,
+  approveCancellation,
+  getCancellationRequests,
+  getPaymentSummary,
+  addRestaurantBill,
+  removeRestaurantBill,
+  extendBooking,
+  cancelExtension,
   createRoomBooking,
   getRoomBookings,
   getRoomBookingById,
   updateRoomBooking,
   deleteRoomBooking,
   getBookingStats,
-  createWalkInBooking,
 } = require("../controller/roomBookingController");
 
-// Routes
+// Main booking routes
 router.route("/")
-  .post(createRoomBooking)
-  .get(getRoomBookings);
+  .post(createBooking)
+  .get(getBookings);
 
+// Walk-in booking
 router.route("/walk-in")
   .post(createWalkInBooking);
 
-router.route("/advance")
-  .post(createRoomBooking); // Reuse existing createRoomBooking
+// Room booking (alternative endpoint)
+router.route("/room")
+  .post(createRoomBooking)
+  .get(getRoomBookings);
+
+// Payment and stats
+router.route("/payment-summary")
+  .get(getPaymentSummary);
 
 router.route("/stats")
   .get(getBookingStats);
 
+// Cancellation management
+router.route("/cancellation-requests")
+  .get(getCancellationRequests);
+
+// Room-specific routes
+router.route("/room/:roomId/active")
+  .get(getRoomActiveBooking);
+
+router.route("/slots/:roomId")
+  .get(getRoomBookedTimeSlots);
+
+// Individual booking routes
 router.route("/:id")
+  .get(getBookingById)
+  .put(updateRoomBooking)
+  .delete(deleteRoomBooking);
+
+// Room booking specific route
+router.route("/room/:id")
   .get(getRoomBookingById)
   .put(updateRoomBooking)
   .delete(deleteRoomBooking);
 
-router.route("/:id/payment")
-  .put(updateRoomBooking); // Reuse existing updateRoomBooking
-
+// Booking status and payment
 router.route("/:id/status")
-  .put(updateRoomBooking); // Reuse existing updateRoomBooking
+  .put(updateBookingStatus);
 
+router.route("/:id/payment")
+  .put(updatePayment);
+
+// Booking extensions
 router.route("/:id/extend")
-  .put(updateRoomBooking); // Reuse existing updateRoomBooking
+  .put(extendBooking);
 
 router.route("/:id/cancel-extension")
-  .put(updateRoomBooking); // Reuse existing updateRoomBooking
+  .put(cancelExtension);
 
+// Restaurant bills
 router.route("/:id/restaurant-bill")
-  .post(updateRoomBooking); // Reuse existing updateRoomBooking
+  .post(addRestaurantBill);
 
 router.route("/:id/restaurant-bill/:billId")
-  .delete(updateRoomBooking); // Reuse existing updateRoomBooking
+  .delete(removeRestaurantBill);
+
+// Cancellation routes
+router.route("/:id/cancel")
+  .put(cancelBooking);
+
+router.route("/:id/request-cancel")
+  .put(requestCancellation);
+
+router.route("/:id/approve-cancel")
+  .put(approveCancellation);
 
 module.exports = router;
