@@ -220,6 +220,11 @@ const roomBookingSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  bookingSource: {
+    type: String,
+    enum: ['online', 'walk-in', 'phone', 'app'],
+    default: 'online',
+  },
   bookingDate: {
     type: Date,
     default: Date.now,

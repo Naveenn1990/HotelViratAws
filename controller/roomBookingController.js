@@ -83,21 +83,40 @@ const createRoomBooking = asyncHandler(async (req, res) => {
     }
 
     // Check for conflicting bookings
+    // Only check active bookings (pending, confirmed, checked-in)
+    // Exclude: cancelled, checked-out, completed
+    // 
+    // Date logic: Room is occupied from check-in TO (but NOT including) check-out
+    // Example: Booking 7th → 8th means room occupied on 7th only, 8th is free
+    // 
+    // Conflict exists if:
+    // - Existing booking's occupied dates overlap with new booking's occupied dates
+    // - Since checkout date is NOT occupied, we use < instead of <=
     const conflictingBooking = await RoomBooking.findOne({
       roomId: roomId,
       status: { $in: ['pending', 'confirmed', 'checked-in'] },
-      $or: [
-        {
-          checkInDate: { $lte: checkOut },
-          checkOutDate: { $gte: checkIn }
-        }
-      ]
+      // Check if date ranges overlap (excluding checkout dates)
+      checkInDate: { $lt: checkOut },      // Existing check-in is before new check-out
+      checkOutDate: { $gt: checkIn }       // Existing check-out is after new check-in
     });
 
     if (conflictingBooking) {
+      console.log('❌ Booking conflict found:', {
+        existingBooking: conflictingBooking._id,
+        existingCheckIn: conflictingBooking.checkInDate,
+        existingCheckOut: conflictingBooking.checkOutDate,
+        existingStatus: conflictingBooking.status,
+        newCheckIn: checkIn,
+        newCheckOut: checkOut
+      });
       return res.status(400).json({
         success: false,
-        message: "Room is already booked for the selected dates"
+        message: "Room is already booked for the selected dates",
+        conflict: {
+          checkInDate: conflictingBooking.checkInDate,
+          checkOutDate: conflictingBooking.checkOutDate,
+          status: conflictingBooking.status
+        }
       });
     }
 
@@ -130,21 +149,23 @@ const createRoomBooking = asyncHandler(async (req, res) => {
       checkOutDate: checkOut,
       checkInTime: checkInTime || '12:00',
       checkOutTime: checkOutTime || '11:00',
-      adults: parseInt(adults) || 1,
-      children: parseInt(children) || 0,
-      specialRequests: specialRequests ? specialRequests.trim() : '',
-      baseAmount: Number(baseAmount) || Number(totalAmount),
-      discountPercent: Number(discountPercent) || 0,
-      discountAmount: Number(discountAmount) || 0,
+      adults: adults || 1,
+      children: children || 0,
+      baseAmount: baseAmount || totalAmount,
+      discountPercent: discountPercent || 0,
+      discountAmount: discountAmount || 0,
       gstOption: gstOption || 'withGST',
       gstType: gstType || 'none',
-      gstAmount: Number(gstAmount) || 0,
-      cgst: Number(cgst) || 0,
-      sgst: Number(sgst) || 0,
-      igst: Number(igst) || 0,
-      totalAmount: Number(totalAmount),
-      totalPrice: Number(totalPrice) || Number(totalAmount),
-      status: status || 'confirmed'
+      gstAmount: gstAmount || 0,
+      cgst: cgst || 0,
+      sgst: sgst || 0,
+      igst: igst || 0,
+      totalAmount: totalAmount,
+      totalPrice: totalPrice || totalAmount,
+      specialRequests: specialRequests || '',
+      status: status || 'confirmed',
+      bookingSource: 'online', // Mark as online booking
+      bookingDate: new Date()
     });
 
     const savedBooking = await booking.save();
@@ -230,21 +251,36 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
     }
 
     // Check for conflicting bookings
+    // Only check active bookings (pending, confirmed, checked-in)
+    // Exclude: cancelled, checked-out, completed
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+    
     const existingBooking = await RoomBooking.findOne({
       roomId,
-      status: { $nin: ['cancelled', 'checked-out'] },
-      $or: [
-        {
-          checkInDate: { $lte: new Date(checkOutDate) },
-          checkOutDate: { $gte: new Date(checkInDate) }
-        }
-      ]
+      status: { $in: ['pending', 'confirmed', 'checked-in'] },
+      // Check if date ranges overlap (excluding checkout dates)
+      checkInDate: { $lt: checkOut },      // Existing check-in is before new check-out
+      checkOutDate: { $gt: checkIn }       // Existing check-out is after new check-in
     });
 
     if (existingBooking) {
+      console.log('❌ Walk-in booking conflict found:', {
+        existingBooking: existingBooking._id,
+        existingCheckIn: existingBooking.checkInDate,
+        existingCheckOut: existingBooking.checkOutDate,
+        existingStatus: existingBooking.status,
+        newCheckIn: checkIn,
+        newCheckOut: checkOut
+      });
       return res.status(400).json({
         success: false,
-        message: "Room is already booked for these dates"
+        message: "Room is already booked for these dates",
+        conflict: {
+          checkInDate: existingBooking.checkInDate,
+          checkOutDate: existingBooking.checkOutDate,
+          status: existingBooking.status
+        }
       });
     }
 
@@ -295,7 +331,8 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
       onlineAmount: onlineAmount || 0,
       payments: payments || [],
       status: status || 'checked-in',
-      paymentStatus: paymentStatus || 'pending'
+      paymentStatus: paymentStatus || 'pending',
+      bookingSource: 'walk-in' // Mark as walk-in booking
     });
 
     const savedBooking = await booking.save();
