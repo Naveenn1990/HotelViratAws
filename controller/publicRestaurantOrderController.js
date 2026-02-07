@@ -35,6 +35,7 @@ exports.createPublicOrder = async (req, res) => {
       tableNumber,
       categoryId,
       categoryName,
+      sessionId,
       items,
       totalAmount,
       paymentMethod,
@@ -91,6 +92,7 @@ exports.createPublicOrder = async (req, res) => {
       tableNumber,
       categoryId,
       categoryName,
+      sessionId, // Store session ID
       items,
       totalAmount: calculatedTotal,
       paymentMethod: paymentMethod || 'pending',

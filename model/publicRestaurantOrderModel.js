@@ -25,6 +25,12 @@ const publicRestaurantOrderSchema = new mongoose.Schema({
     default: 1
   },
   
+  // Session tracking (links multiple orders from same table visit)
+  sessionId: {
+    type: String,
+    index: true
+  },
+  
   // Branch and table information
   branchId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -125,6 +131,7 @@ publicRestaurantOrderSchema.index({ branchId: 1, orderTime: -1 });
 publicRestaurantOrderSchema.index({ orderId: 1 });
 publicRestaurantOrderSchema.index({ customerMobile: 1 });
 publicRestaurantOrderSchema.index({ tableNumber: 1, branchId: 1 });
+publicRestaurantOrderSchema.index({ sessionId: 1 }); // Index for session queries
 
 const PublicRestaurantOrder = mongoose.model('PublicRestaurantOrder', publicRestaurantOrderSchema);
 
