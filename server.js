@@ -183,6 +183,8 @@ const PayrollCons = require ("./routes/payrollRoutesConstruction")
  */
 // Restaurant Profile Adapter Routes (for WaveCrm compatibility)
 const restaurantProfileRoutes = require("./routes/restaurantProfileRoutes");
+// Public Restaurant Order Routes (for QR code menu orders)
+const publicRestaurantOrderRoutes = require("./routes/publicRestaurantOrderRoutes");
 // hotel Routes
 app.use("/api/v1/hotel/user-auth", userRoutes);
 app.use("/api/v1/hotel/branch", branchRoutes);
@@ -230,6 +232,9 @@ app.use("/api/v1/hotel/room", roomRoutes);
 app.use("/api/v1/hotel/room-booking", roomBookingRoutes);
 app.use("/api/v1/hotel/category-access", categoryAccessRoutes);
 app.use("/api/v1/hotel/receptionist-access", receptionistAccessRoutes);
+
+// Public Restaurant Order Routes (QR code menu orders - no authentication required)
+app.use("/api/v1/hotel/public-order", publicRestaurantOrderRoutes);
 
 // Bill Reset Routes
 app.use("/api/v1/hotel/bill-reset", billResetRoutes);
