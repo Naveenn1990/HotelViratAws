@@ -8,7 +8,8 @@ router.get('/order/:orderId', publicRestaurantOrderController.getOrderById);
 router.get('/customer/:mobile', publicRestaurantOrderController.getOrdersByMobile);
 
 // Admin/Staff routes (add authentication middleware if needed)
-router.get('/all', publicRestaurantOrderController.getAllPublicOrders);
+router.get('/', publicRestaurantOrderController.getAllPublicOrders); // GET /public-order
+router.get('/all', publicRestaurantOrderController.getAllPublicOrders); // Legacy route
 router.patch('/update/:orderId', publicRestaurantOrderController.updateOrderStatus);
 
 module.exports = router;

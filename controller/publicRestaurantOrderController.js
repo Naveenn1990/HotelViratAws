@@ -130,7 +130,7 @@ exports.createPublicOrder = async (req, res) => {
 // Get all public orders (for admin/staff)
 exports.getAllPublicOrders = async (req, res) => {
   try {
-    const { branchId, startDate, endDate, status } = req.query;
+    const { branchId, startDate, endDate, status, paymentMethod, search } = req.query;
 
     let query = {};
 
@@ -140,6 +140,10 @@ exports.getAllPublicOrders = async (req, res) => {
 
     if (status) {
       query.orderStatus = status;
+    }
+
+    if (paymentMethod) {
+      query.paymentMethod = paymentMethod;
     }
 
     if (startDate || endDate) {
@@ -152,9 +156,20 @@ exports.getAllPublicOrders = async (req, res) => {
       }
     }
 
+    // Search functionality
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { orderId: searchRegex },
+        { customerName: searchRegex },
+        { customerMobile: searchRegex },
+        { tableNumber: searchRegex },
+        { sessionId: searchRegex }
+      ];
+    }
+
+    // Don't populate, just return the data as-is since we store branchName directly
     const orders = await PublicRestaurantOrder.find(query)
-      .populate('branchId', 'name')
-      .populate('categoryId', 'name')
       .sort({ orderTime: -1 })
       .lean();
 
@@ -179,9 +194,8 @@ exports.getOrderById = async (req, res) => {
   try {
     const { orderId } = req.params;
 
+    // Don't populate, just return the data as-is since we store branchName directly
     const order = await PublicRestaurantOrder.findOne({ orderId })
-      .populate('branchId', 'name contact address')
-      .populate('categoryId', 'name')
       .lean();
 
     if (!order) {
@@ -251,8 +265,8 @@ exports.getOrdersByMobile = async (req, res) => {
   try {
     const { mobile } = req.params;
 
+    // Don't populate, just return the data as-is since we store branchName directly
     const orders = await PublicRestaurantOrder.find({ customerMobile: mobile })
-      .populate('branchId', 'name')
       .sort({ orderTime: -1 })
       .limit(10)
       .lean();
