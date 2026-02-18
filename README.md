@@ -1,2 +1,0 @@
-# Crm_Backend
-# HotelViratAws

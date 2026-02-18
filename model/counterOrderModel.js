@@ -198,8 +198,24 @@ const counterOrderSchema = new mongoose.Schema({
   },
 })
 
-// Add index for better query performance
+// Add indexes for better query performance
 counterOrderSchema.index({ userId: 1, createdAt: -1 })
 counterOrderSchema.index({ orderStatus: 1 })
+counterOrderSchema.index({ paymentStatus: 1 })
+counterOrderSchema.index({ branch: 1 })
+counterOrderSchema.index({ categoryName: 1 })
+counterOrderSchema.index({ createdAt: -1 })
+counterOrderSchema.index({ customerName: 1 })
+counterOrderSchema.index({ phoneNumber: 1 })
+counterOrderSchema.index({ invoiceNumber: 1 })
+counterOrderSchema.index({ kotNumber: 1 })
+counterOrderSchema.index({ isComplimentary: 1 })
+// Text search index for customer name, phone, invoice, KOT
+counterOrderSchema.index({ 
+  customerName: 'text', 
+  phoneNumber: 'text', 
+  invoiceNumber: 'text', 
+  kotNumber: 'text' 
+})
 
 module.exports = mongoose.model("CounterOrder", counterOrderSchema)

@@ -306,10 +306,21 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
     includeComplimentary = false, 
     startDate, 
     endDate, 
-    date 
+    date,
+    page = 1,
+    limit = 50,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    search,
+    branchId,
+    categoryName,
+    paymentStatus,
+    orderStatus,
+    paymentMethod
   } = req.query
   
   console.log('📅 Date filter params:', { startDate, endDate, date });
+  console.log('🔍 Filter params:', { search, branchId, categoryName, paymentStatus, orderStatus, paymentMethod });
   
   // Build query to exclude complimentary orders from sales reports unless explicitly requested
   const query = {}
@@ -359,22 +370,83 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
     });
   }
 
+  // Add search filter - search by customer name, phone number, invoice number, KOT number
+  if (search && search.trim() !== '') {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    query.$or = [
+      { customerName: searchRegex },
+      { phoneNumber: searchRegex },
+      { invoiceNumber: searchRegex },
+      { kotNumber: searchRegex }
+    ];
+  }
+
+  // Add branch filter
+  if (branchId) {
+    query.branch = branchId;
+  }
+
+  // Add category filter
+  if (categoryName) {
+    query.categoryName = new RegExp(categoryName.trim(), 'i');
+  }
+
+  // Add payment status filter
+  if (paymentStatus) {
+    query.paymentStatus = paymentStatus;
+  }
+
+  // Add order status filter
+  if (orderStatus) {
+    query.orderStatus = orderStatus;
+  }
+
+  // Add payment method filter
+  if (paymentMethod) {
+    query.paymentMethod = paymentMethod;
+  }
+
   console.log('🔍 Final query:', query);
 
-  const counterOrders = await CounterOrder.find(query)
-    .populate("userId", "name mobile")
-    .populate("branch", "name address")
-    .populate("invoice", "invoiceNumber")
-    .populate("items.menuItemId", "name")
-    .sort({ createdAt: -1 })
+  // Calculate pagination
+  const pageNum = parseInt(page);
+  const limitNum = parseInt(limit);
+  const skip = (pageNum - 1) * limitNum;
 
-  console.log('📊 Found orders after date filter:', counterOrders.length);
+  // Build sort object
+  const sort = {};
+  sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+  // Execute query with pagination
+  const [counterOrders, totalCount] = await Promise.all([
+    CounterOrder.find(query)
+      .populate("userId", "name mobile")
+      .populate("branch", "name address")
+      .populate("invoice", "invoiceNumber")
+      .populate("items.menuItemId", "name")
+      .sort(sort)
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+    CounterOrder.countDocuments(query)
+  ]);
+
+  console.log('📊 Found orders after filters:', counterOrders.length, 'of', totalCount);
 
   if (!counterOrders || counterOrders.length === 0) {
     return res.status(200).json({
+      success: true,
       message: "No counter orders found",
       data: [],
       orders: [],
+      pagination: {
+        currentPage: pageNum,
+        totalPages: 0,
+        totalItems: 0,
+        itemsPerPage: limitNum,
+        hasNextPage: false,
+        hasPrevPage: false
+      }
     })
   }
 
@@ -409,16 +481,16 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
         tableNumber: order.tableNumber,
         kotNumber: order.kotNumber,
         kotTime: order.kotTime,
-        invoiceNumber: order.invoiceNumber, // ADD: Include invoiceNumber in response
-        categoryName: order.categoryName, // ADD: Include categoryName for filtering
-        categoryId: order.categoryId, // ADD: Include categoryId for filtering
-        branchName: order.branchName, // ADD: Include branchName for filtering
+        invoiceNumber: order.invoiceNumber,
+        categoryName: order.categoryName,
+        categoryId: order.categoryId,
+        branchName: order.branchName,
         items: order.items || [],
         subtotal: order.subtotal,
         tax: order.tax,
         serviceCharge: order.serviceCharge,
         totalAmount: order.totalAmount,
-        grandTotal: order.grandTotal, // FIXED: was order.grandTStatus
+        grandTotal: order.grandTotal,
         paymentMethod: order.paymentMethod,
         orderStatus: order.orderStatus,
         paymentStatus: order.paymentStatus,
@@ -427,18 +499,44 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
         cancellationReason: order.cancellationReason,
         cancelledAt: order.cancelledAt,
         createdAt: order.createdAt,
-        orderDate: order.createdAt, // ADD: Alias for compatibility
+        orderDate: order.createdAt,
       }
     })
-    .filter((order) => order !== null) // Remove any null entries
+    .filter((order) => order !== null);
+
+  // Calculate pagination metadata
+  const totalPages = Math.ceil(totalCount / limitNum);
+  const hasNextPage = pageNum < totalPages;
+  const hasPrevPage = pageNum > 1;
 
   console.log('✅ Returning formatted orders:', formattedOrders.length);
 
   res.status(200).json({
+    success: true,
     message: "Counter orders retrieved successfully",
     count: formattedOrders.length,
-    data: formattedOrders, // ADD: Include data field for compatibility
+    data: formattedOrders,
     orders: formattedOrders,
+    pagination: {
+      currentPage: pageNum,
+      totalPages,
+      totalItems: totalCount,
+      itemsPerPage: limitNum,
+      hasNextPage,
+      hasPrevPage
+    },
+    filters: {
+      includeComplimentary,
+      startDate,
+      endDate,
+      date,
+      search,
+      branchId,
+      categoryName,
+      paymentStatus,
+      orderStatus,
+      paymentMethod
+    }
   })
 })
 exports.getCounterOrdersByUserId = asyncHandler(async (req, res) => {

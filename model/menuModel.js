@@ -155,4 +155,13 @@ const menuSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add indexes for better query performance
+menuSchema.index({ name: 1 });
+menuSchema.index({ itemName: 1 });
+menuSchema.index({ categoryId: 1 });
+menuSchema.index({ branchId: 1 });
+menuSchema.index({ isActive: 1 });
+menuSchema.index({ createdAt: -1 });
+menuSchema.index({ name: 'text', itemName: 'text', description: 'text' }); // Text search index
+
 module.exports = mongoose.model('Menu', menuSchema);

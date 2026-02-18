@@ -154,23 +154,107 @@ exports.createMenuItem = async (req, res) => {
 };
 exports.getAllMenuItems = async (req, res) => {
   try {
-    const { categoryId, subcategoryId, branchId } = req.query;
+    const { 
+      categoryId, 
+      subcategoryId, 
+      branchId,
+      search,
+      page = 1,
+      limit = 50,
+      sortBy = 'name',
+      sortOrder = 'asc',
+      startDate,
+      endDate,
+      isActive
+    } = req.query;
 
+    // Build filter object
     const filter = {};
     if (categoryId) filter.categoryId = categoryId;
     if (subcategoryId) filter.subcategoryId = subcategoryId;
     if (branchId) filter.branchId = branchId;
+    if (isActive !== undefined) filter.isActive = isActive === 'true';
     
-    const menuItems = await Menu.find(filter)
-      .populate('categoryId', 'name')
-      .populate('subcategoryId', 'name')
-      .populate('branchId', 'name')
-      .select('name itemName description price quantities prices menuTypes image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans subscriptionAmount subscriptionDiscount subscriptionDuration subscription3Days subscription1Week subscription1Month subscription30Days')
-      .sort({ name: 1 });
-      
-    res.status(200).json(menuItems);
+    // Search filter - search by name, itemName, or description
+    if (search && search.trim() !== '' && search !== '000') {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      filter.$or = [
+        { name: searchRegex },
+        { itemName: searchRegex },
+        { description: searchRegex }
+      ];
+    }
+    
+    // Date range filter - filter by createdAt or updatedAt
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        // Add 1 day to include the entire end date
+        const endDateTime = new Date(endDate);
+        endDateTime.setDate(endDateTime.getDate() + 1);
+        filter.createdAt.$lt = endDateTime;
+      }
+    }
+    
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Build sort object
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    // Execute query with pagination
+    const [menuItems, totalCount] = await Promise.all([
+      Menu.find(filter)
+        .populate('categoryId', 'name')
+        .populate('subcategoryId', 'name')
+        .populate('branchId', 'name')
+        .select('name itemName description price quantities prices menuTypes image categoryId subcategoryId branchId stock lowStockAlert isActive subscriptionEnabled subscriptionPlans subscriptionAmount subscriptionDiscount subscriptionDuration subscription3Days subscription1Week subscription1Month subscription30Days createdAt updatedAt')
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Menu.countDocuments(filter)
+    ]);
+    
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+    
+    res.status(200).json({
+      success: true,
+      data: menuItems,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limitNum,
+        hasNextPage,
+        hasPrevPage
+      },
+      filters: {
+        categoryId,
+        subcategoryId,
+        branchId,
+        search,
+        startDate,
+        endDate,
+        isActive
+      }
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching menu items', error: error.message });
+    console.error('Error fetching menu items:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching menu items', 
+      error: error.message 
+    });
   }
 };
 exports.getMenuItemById = async (req, res) => {
