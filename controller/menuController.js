@@ -160,7 +160,7 @@ exports.getAllMenuItems = async (req, res) => {
       branchId,
       search,
       page = 1,
-      limit = 50,
+      limit = 100,
       sortBy = 'name',
       sortOrder = 'asc',
       startDate,
