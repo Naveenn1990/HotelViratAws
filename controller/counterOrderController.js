@@ -389,6 +389,7 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
   // Add category filter
   if (categoryName) {
     query.categoryName = new RegExp(categoryName.trim(), 'i');
+    console.log('📂 Category filter applied:', categoryName);
   }
 
   // Add payment status filter
@@ -417,6 +418,9 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
   const sort = {};
   sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
+  // Start performance timer
+  const startTime = Date.now();
+
   // Execute query with pagination
   const [counterOrders, totalCount] = await Promise.all([
     CounterOrder.find(query)
@@ -430,6 +434,10 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
       .lean(),
     CounterOrder.countDocuments(query)
   ]);
+
+  // Log performance
+  const queryTime = Date.now() - startTime;
+  console.log(`⚡ Query executed in ${queryTime}ms - Found ${counterOrders.length} of ${totalCount} orders`);
 
   console.log('📊 Found orders after filters:', counterOrders.length, 'of', totalCount);
 
@@ -497,6 +505,7 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
         isComplimentary: order.isComplimentary || false,
         complimentaryReason: order.complimentaryReason,
         cancellationReason: order.cancellationReason,
+        cancelledBy: order.cancelledBy,
         cancelledAt: order.cancelledAt,
         createdAt: order.createdAt,
         orderDate: order.createdAt,
@@ -840,7 +849,7 @@ exports.updateCounterPaymentStatus = asyncHandler(async (req, res) => {
 // Cancel order with reason
 exports.cancelCounterOrder = asyncHandler(async (req, res) => {
   const { id } = req.params
-  const { cancellationReason } = req.body
+  const { cancellationReason, cancelledBy } = req.body
 
   // Validate ObjectId format
   if (!id.match(/^[0-9a-fA-F]{24}$/)) {
@@ -870,15 +879,16 @@ exports.cancelCounterOrder = asyncHandler(async (req, res) => {
     throw new Error("Order is already cancelled")
   }
 
-  // Check if order is completed
-  if (counterOrder.orderStatus === "completed") {
-    res.status(400)
-    throw new Error("Cannot cancel a completed order")
-  }
+  // REMOVED: Allow cancelling completed orders
+  // if (counterOrder.orderStatus === "completed") {
+  //   res.status(400)
+  //   throw new Error("Cannot cancel a completed order")
+  // }
 
-  // Update order status to cancelled and add cancellation reason
+  // Update order status to cancelled and add cancellation details
   counterOrder.orderStatus = "cancelled"
   counterOrder.cancellationReason = cancellationReason.trim()
+  counterOrder.cancelledBy = cancelledBy ? cancelledBy.trim() : null
   counterOrder.cancelledAt = new Date()
   await counterOrder.save()
 
@@ -920,6 +930,7 @@ exports.cancelCounterOrder = asyncHandler(async (req, res) => {
       orderStatus: populatedOrder.orderStatus,
       paymentStatus: populatedOrder.paymentStatus,
       cancellationReason: populatedOrder.cancellationReason,
+      cancelledBy: populatedOrder.cancelledBy,
       cancelledAt: populatedOrder.cancelledAt,
       createdAt: populatedOrder.createdAt,
     },
@@ -943,3 +954,352 @@ exports.clearAllCounterOrders = asyncHandler(async (req, res) => {
   }
 })
 
+// Get categorized orders with pagination and filtering (optimized for big data)
+exports.getCategorizedOrders = asyncHandler(async (req, res) => {
+  const { 
+    includeComplimentary = false, 
+    startDate, 
+    endDate, 
+    date,
+    page = 1,
+    limit = 50,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    search,
+    branchId,
+    categoryName,
+    paymentStatus,
+    orderStatus,
+    paymentMethod
+  } = req.query
+  
+  console.log('📊 getCategorizedOrders called with params:', { 
+    date, startDate, endDate, categoryName, orderStatus, page, limit 
+  });
+  
+  // Build query to exclude complimentary orders unless explicitly requested
+  const query = {}
+  if (!includeComplimentary || includeComplimentary === 'false') {
+    query.isComplimentary = { $ne: true }
+  }
+
+  // Only include orders with invoice numbers (completed bills)
+  query.$or = [
+    { invoiceNumber: { $exists: true, $ne: null, $ne: '' } },
+    { 'invoice': { $exists: true, $ne: null } }
+  ]
+
+  // Add date filtering
+  if (date) {
+    const filterDate = new Date(date);
+    const startOfDay = new Date(filterDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(filterDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    query.createdAt = {
+      $gte: startOfDay,
+      $lte: endOfDay
+    };
+  } else if (startDate || endDate) {
+    query.createdAt = {};
+    
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      query.createdAt.$gte = start;
+    }
+    
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt.$lte = end;
+    }
+  }
+
+  // Add search filter
+  if (search && search.trim() !== '') {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    query.$and = query.$and || [];
+    query.$and.push({
+      $or: [
+        { customerName: searchRegex },
+        { phoneNumber: searchRegex },
+        { invoiceNumber: searchRegex },
+        { kotNumber: searchRegex }
+      ]
+    });
+  }
+
+  // Add branch filter
+  if (branchId) {
+    query.branch = branchId;
+  }
+
+  // Add category filter
+  if (categoryName && categoryName !== 'all') {
+    const categoryLower = categoryName.toLowerCase().trim();
+    
+    if (categoryLower === 'selfservice' || categoryLower === 'self service') {
+      // Self service: categoryName contains 'self service' or 'darshini', OR no table
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { categoryName: /self service|self-service|darshini/i },
+          { $and: [
+            { categoryName: { $not: /restaurant|temple/i } },
+            { $or: [
+              { tableNumber: { $exists: false } },
+              { tableNumber: null },
+              { tableNumber: '' }
+            ]}
+          ]}
+        ]
+      });
+    } else if (categoryLower === 'restaurant') {
+      // Restaurant: categoryName contains 'restaurant' OR has table number
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { categoryName: /restaurant/i },
+          { $and: [
+            { categoryName: { $not: /temple|self service|darshini/i } },
+            { tableNumber: { $exists: true, $ne: null, $ne: '' } }
+          ]}
+        ]
+      });
+    } else if (categoryLower === 'templemeals' || categoryLower === 'temple meals') {
+      // Temple meals: categoryName contains 'temple'
+      query.categoryName = /temple/i;
+    }
+  }
+
+  // Add payment status filter
+  if (paymentStatus) {
+    query.paymentStatus = paymentStatus;
+  }
+
+  // Add order status filter
+  if (orderStatus) {
+    query.orderStatus = orderStatus;
+  }
+
+  // Add payment method filter
+  if (paymentMethod) {
+    query.paymentMethod = paymentMethod;
+  }
+
+  console.log('🔍 Final query:', JSON.stringify(query, null, 2));
+
+  // Calculate pagination
+  const pageNum = parseInt(page);
+  const limitNum = parseInt(limit);
+  const skip = (pageNum - 1) * limitNum;
+
+  // Build sort object
+  const sort = {};
+  sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+  // Start performance timer
+  const startTime = Date.now();
+
+  // Execute query with pagination
+  const [counterOrders, totalCount] = await Promise.all([
+    CounterOrder.find(query)
+      .populate("userId", "name mobile")
+      .populate("branch", "name address")
+      .populate("invoice", "invoiceNumber")
+      .populate("items.menuItemId", "name")
+      .sort(sort)
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+    CounterOrder.countDocuments(query)
+  ]);
+
+  // Calculate category counts (for all matching orders, not just current page)
+  const categoryCounts = await Promise.all([
+    // Self Service count
+    CounterOrder.countDocuments({
+      ...query,
+      $or: [
+        { categoryName: /self service|self-service|darshini/i },
+        { $and: [
+          { categoryName: { $not: /restaurant|temple/i } },
+          { $or: [
+            { tableNumber: { $exists: false } },
+            { tableNumber: null },
+            { tableNumber: '' }
+          ]}
+        ]}
+      ]
+    }),
+    // Restaurant count
+    CounterOrder.countDocuments({
+      ...query,
+      $or: [
+        { categoryName: /restaurant/i },
+        { $and: [
+          { categoryName: { $not: /temple|self service|darshini/i } },
+          { tableNumber: { $exists: true, $ne: null, $ne: '' } }
+        ]}
+      ]
+    }),
+    // Temple Meals count
+    CounterOrder.countDocuments({
+      ...query,
+      categoryName: /temple/i
+    })
+  ]);
+
+  // Calculate statistics for all matching orders (not just current page)
+  const allMatchingOrders = await CounterOrder.find(query).select('grandTotal totalAmount orderStatus').lean();
+  
+  const stats = {
+    totalOrders: totalCount,
+    totalRevenue: 0,
+    cancelledOrders: 0,
+    cancelledAmount: 0,
+    completedOrders: 0,
+    pendingOrders: 0
+  };
+
+  allMatchingOrders.forEach(order => {
+    const status = (order.orderStatus || 'completed').toLowerCase();
+    const amount = order.grandTotal || order.totalAmount || 0;
+    
+    if (status === 'cancelled') {
+      stats.cancelledOrders++;
+      stats.cancelledAmount += amount;
+    } else {
+      stats.totalRevenue += amount;
+      if (status === 'completed') {
+        stats.completedOrders++;
+      } else if (status === 'pending' || status === 'processing') {
+        stats.pendingOrders++;
+      }
+    }
+  });
+
+  // Log performance
+  const queryTime = Date.now() - startTime;
+  console.log(`⚡ Query executed in ${queryTime}ms - Found ${counterOrders.length} of ${totalCount} orders`);
+
+  if (!counterOrders || counterOrders.length === 0) {
+    return res.status(200).json({
+      success: true,
+      message: "No counter orders found",
+      data: [],
+      orders: [],
+      stats,
+      categoryCounts: {
+        selfService: categoryCounts[0],
+        restaurant: categoryCounts[1],
+        templeMeals: categoryCounts[2]
+      },
+      pagination: {
+        currentPage: pageNum,
+        totalPages: 0,
+        totalItems: 0,
+        itemsPerPage: limitNum,
+        hasNextPage: false,
+        hasPrevPage: false
+      }
+    })
+  }
+
+  // Format orders
+  const formattedOrders = counterOrders
+    .map((order) => {
+      if (!order.userId || !order.branch) {
+        console.warn(`Order ${order._id} has missing populated references`)
+        return null
+      }
+
+      return {
+        id: order._id,
+        userId: {
+          id: order.userId._id,
+          name: order.userId.name,
+          mobile: order.userId.mobile,
+        },
+        customerName: order.customerName,
+        phoneNumber: order.phoneNumber,
+        branch: {
+          id: order.branch._id,
+          name: order.branch.name,
+          location: order.branch.address,
+        },
+        invoice: order.invoice ? {
+          id: order.invoice._id,
+          invoiceNumber: order.invoice.invoiceNumber,
+        } : null,
+        tableId: order.tableId,
+        tableNumber: order.tableNumber,
+        kotNumber: order.kotNumber,
+        kotTime: order.kotTime,
+        invoiceNumber: order.invoiceNumber,
+        categoryName: order.categoryName,
+        categoryId: order.categoryId,
+        branchName: order.branchName,
+        items: order.items || [],
+        subtotal: order.subtotal,
+        tax: order.tax,
+        serviceCharge: order.serviceCharge,
+        totalAmount: order.totalAmount,
+        grandTotal: order.grandTotal,
+        paymentMethod: order.paymentMethod,
+        orderStatus: order.orderStatus,
+        paymentStatus: order.paymentStatus,
+        isComplimentary: order.isComplimentary || false,
+        complimentaryReason: order.complimentaryReason,
+        cancellationReason: order.cancellationReason,
+        cancelledBy: order.cancelledBy,
+        cancelledAt: order.cancelledAt,
+        createdAt: order.createdAt,
+        orderDate: order.createdAt,
+      }
+    })
+    .filter((order) => order !== null);
+
+  // Calculate pagination metadata
+  const totalPages = Math.ceil(totalCount / limitNum);
+  const hasNextPage = pageNum < totalPages;
+  const hasPrevPage = pageNum > 1;
+
+  console.log('✅ Returning formatted orders:', formattedOrders.length);
+
+  res.status(200).json({
+    success: true,
+    message: "Categorized orders retrieved successfully",
+    count: formattedOrders.length,
+    data: formattedOrders,
+    orders: formattedOrders,
+    stats,
+    categoryCounts: {
+      selfService: categoryCounts[0],
+      restaurant: categoryCounts[1],
+      templeMeals: categoryCounts[2]
+    },
+    pagination: {
+      currentPage: pageNum,
+      totalPages,
+      totalItems: totalCount,
+      itemsPerPage: limitNum,
+      hasNextPage,
+      hasPrevPage
+    },
+    filters: {
+      includeComplimentary,
+      startDate,
+      endDate,
+      date,
+      search,
+      branchId,
+      categoryName,
+      paymentStatus,
+      orderStatus,
+      paymentMethod
+    }
+  })
+})

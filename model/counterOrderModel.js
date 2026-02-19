@@ -188,6 +188,12 @@ const counterOrderSchema = new mongoose.Schema({
     maxlength: [500, "Cancellation reason cannot exceed 500 characters"],
     default: null,
   },
+  cancelledBy: {
+    type: String,
+    trim: true,
+    maxlength: [100, "Cancelled by name cannot exceed 100 characters"],
+    default: null,
+  },
   cancelledAt: {
     type: Date,
     default: null,
@@ -210,6 +216,11 @@ counterOrderSchema.index({ phoneNumber: 1 })
 counterOrderSchema.index({ invoiceNumber: 1 })
 counterOrderSchema.index({ kotNumber: 1 })
 counterOrderSchema.index({ isComplimentary: 1 })
+// Compound indexes for common query patterns (faster filtering)
+counterOrderSchema.index({ branch: 1, categoryName: 1, createdAt: -1 })
+counterOrderSchema.index({ branch: 1, createdAt: -1 })
+counterOrderSchema.index({ categoryName: 1, createdAt: -1 })
+counterOrderSchema.index({ branch: 1, categoryName: 1, paymentStatus: 1 })
 // Text search index for customer name, phone, invoice, KOT
 counterOrderSchema.index({ 
   customerName: 'text', 

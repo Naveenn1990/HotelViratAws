@@ -21,6 +21,10 @@ const createRoomBooking = asyncHandler(async (req, res) => {
       guestGstNumber,
       aadhaarNumber,
       panNumber,
+      aadhaarPic,
+      visaPic,
+      isExceeding24Hours,
+      customAmount,
       checkInDate,
       checkOutDate,
       checkInTime,
@@ -145,6 +149,10 @@ const createRoomBooking = asyncHandler(async (req, res) => {
       guestGstNumber: guestGstNumber || '',
       aadhaarNumber: aadhaarNumber || '',
       panNumber: panNumber || '',
+      aadhaarPic: aadhaarPic || null,
+      visaPic: visaPic || null,
+      isExceeding24Hours: isExceeding24Hours || false,
+      customAmount: customAmount || 0,
       checkInDate: checkIn,
       checkOutDate: checkOut,
       checkInTime: checkInTime || '12:00',
@@ -208,6 +216,10 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
       guestGstNumber,
       aadhaarNumber,
       panNumber,
+      aadhaarPic,
+      visaPic,
+      isExceeding24Hours,
+      customAmount,
       checkInDate,
       checkOutDate,
       checkInTime,
@@ -312,6 +324,10 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
       guestGstNumber: guestGstNumber || '',
       aadhaarNumber: aadhaarNumber || '',
       panNumber: panNumber || '',
+      aadhaarPic: aadhaarPic || null,
+      visaPic: visaPic || null,
+      isExceeding24Hours: isExceeding24Hours || false,
+      customAmount: customAmount || 0,
       checkInDate: new Date(checkInDate),
       checkOutDate: new Date(checkOutDate),
       checkInTime: checkInTime || '12:00',
@@ -1263,10 +1279,52 @@ const cancelExtension = asyncHandler(async (req, res) => {
   }
 });
 
+// Upload documents (Aadhaar, Visa)
+const uploadDocuments = asyncHandler(async (req, res) => {
+  try {
+    console.log("=== UPLOAD DOCUMENTS ===");
+    console.log("Files:", req.files);
+
+    if (!req.files || Object.keys(req.files).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No files uploaded"
+      });
+    }
+
+    const uploadedFiles = {};
+    
+    // Process aadhaarPic if uploaded
+    if (req.files.aadhaarPic && req.files.aadhaarPic[0]) {
+      uploadedFiles.aadhaarPic = `/uploads/documents/${req.files.aadhaarPic[0].filename}`;
+    }
+    
+    // Process visaPic if uploaded
+    if (req.files.visaPic && req.files.visaPic[0]) {
+      uploadedFiles.visaPic = `/uploads/documents/${req.files.visaPic[0].filename}`;
+    }
+
+    console.log("✅ Files uploaded successfully:", uploadedFiles);
+
+    res.status(200).json({
+      success: true,
+      message: "Files uploaded successfully",
+      files: uploadedFiles
+    });
+  } catch (error) {
+    console.error("Error uploading documents:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload documents"
+    });
+  }
+});
+
 module.exports = {
   createBooking: createRoomBooking, // Alias for createRoomBooking
   createRoomBooking,
   createWalkInBooking,
+  uploadDocuments,
   getBookings: getRoomBookings, // Alias for getRoomBookings
   getRoomBookings,
   getBookingById: getRoomBookingById, // Alias for getRoomBookingById

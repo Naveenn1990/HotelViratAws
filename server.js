@@ -66,6 +66,7 @@ createDirIfNotExists("uploads/menu");
 createDirIfNotExists("uploads/offer");
 createDirIfNotExists("uploads/rooms");
 createDirIfNotExists("uploads/table");
+createDirIfNotExists("uploads/documents");
 // Serve static files from the "uploads" directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // MongoDB Connection with better error handling and reconnection

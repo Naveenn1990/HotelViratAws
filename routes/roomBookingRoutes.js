@@ -1,8 +1,10 @@
 const express = require("express");
 const router = express.Router();
+const upload = require("../middleware/uploadMiddleware");
 const {
   createBooking,
   createWalkInBooking,
+  uploadDocuments,
   getBookings,
   getBookingById,
   getRoomActiveBooking,
@@ -34,6 +36,12 @@ router.route("/")
 // Walk-in booking
 router.route("/walk-in")
   .post(createWalkInBooking);
+
+// Upload documents (Aadhaar, Visa)
+router.post("/upload-documents", upload.fields([
+  { name: 'aadhaarPic', maxCount: 1 },
+  { name: 'visaPic', maxCount: 1 }
+]), uploadDocuments);
 
 // Room booking (alternative endpoint)
 router.route("/room")

@@ -71,6 +71,25 @@ const roomBookingSchema = new mongoose.Schema({
       message: 'Invalid PAN number format'
     }
   },
+  aadhaarPic: {
+    type: String, // Store file path or URL
+    trim: true,
+    default: null,
+  },
+  visaPic: {
+    type: String, // Store file path or URL
+    trim: true,
+    default: null,
+  },
+  isExceeding24Hours: {
+    type: Boolean,
+    default: false,
+  },
+  customAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
   checkInDate: {
     type: Date,
     required: true,

@@ -6,6 +6,9 @@ const { validateStock, updateStockAfterOrder, restoreStockOnCancellation } = req
 // List all orders - this should come BEFORE the /:id route
 router.get("/orders", counterOrderController.getAllCounterOrders)
 
+// Get categorized orders with pagination and filtering (optimized for big data)
+router.get("/categorized-orders", counterOrderController.getCategorizedOrders)
+
 // Get orders by user ID
 router.get("/orders/user/:userId", counterOrderController.getCounterOrdersByUserId)
 
