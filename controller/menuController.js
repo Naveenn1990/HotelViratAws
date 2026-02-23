@@ -168,6 +168,8 @@ exports.getAllMenuItems = async (req, res) => {
       isActive
     } = req.query;
 
+    console.log('📋 getAllMenuItems called with:', { categoryId, subcategoryId, branchId, search, page, limit, isActive });
+
     // Build filter object
     const filter = {};
     if (categoryId) filter.categoryId = categoryId;
@@ -175,15 +177,45 @@ exports.getAllMenuItems = async (req, res) => {
     if (branchId) filter.branchId = branchId;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     
-    // Search filter - search by name, itemName, or description
+    console.log('📋 Base filter (before search):', JSON.stringify(filter));
+    
+    // Search filter - search by name, itemName, description, or number in name
+    // Support both full phrase match and individual word matches
     if (search && search.trim() !== '' && search !== '000') {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      filter.$or = [
+      const searchTerm = search.trim();
+      
+      // Try to match the full search term first (case-insensitive)
+      const searchRegex = new RegExp(searchTerm, 'i');
+      
+      // Also split search into words for more flexible matching
+      const searchWords = searchTerm.split(/\s+/).filter(word => word.length > 0);
+      
+      // Build search conditions
+      const searchConditions = [
         { name: searchRegex },
         { itemName: searchRegex },
         { description: searchRegex }
       ];
+      
+      // If multiple words, also search for items containing all words (in any order)
+      if (searchWords.length > 1) {
+        const wordRegexes = searchWords.map(word => new RegExp(word, 'i'));
+        searchConditions.push({
+          $and: wordRegexes.map(regex => ({
+            $or: [
+              { name: regex },
+              { itemName: regex }
+            ]
+          }))
+        });
+      }
+      
+      filter.$or = searchConditions;
+      
+      // console.log('🔍 Search filter:', JSON.stringify(filter.$or, null, 2));
     }
+    
+    // console.log('📋 Final filter:', JSON.stringify(filter, null, 2));
     
     // Date range filter - filter by createdAt or updatedAt
     if (startDate || endDate) {
@@ -221,6 +253,16 @@ exports.getAllMenuItems = async (req, res) => {
         .lean(),
       Menu.countDocuments(filter)
     ]);
+    
+    console.log('📋 Query results:', menuItems.length, 'items found, total count:', totalCount);
+    if (menuItems.length > 0) {
+      console.log('📋 Sample item:', {
+        name: menuItems[0].name,
+        itemName: menuItems[0].itemName,
+        categoryId: menuItems[0].categoryId,
+        isActive: menuItems[0].isActive
+      });
+    }
     
     // Calculate pagination metadata
     const totalPages = Math.ceil(totalCount / limitNum);
