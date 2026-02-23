@@ -59,8 +59,41 @@ const roomSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  // Hourly Pricing Options
+  hourlyPricing: {
+    enabled: { type: Boolean, default: false },
+    threeHours: { type: Number, default: 0 },
+    sixHours: { type: Number, default: 0 },
+    nineHours: { type: Number, default: 0 },
+    twelveHours: { type: Number, default: 0 },
+  },
+  // Housekeeping Status
+  housekeepingStatus: {
+    type: String,
+    enum: ['clean', 'dirty', 'in-progress', 'inspected', 'out-of-order'],
+    default: 'clean',
+  },
+  lastCleanedAt: {
+    type: Date,
+    default: null,
+  },
+  lastCleanedBy: {
+    type: String,
+    default: null,
+  },
+  cleaningNotes: {
+    type: String,
+    trim: true,
+    default: '',
+  },
 }, {
   timestamps: true
 });
+
+// Index for efficient queries
+roomSchema.index({ branchId: 1 });
+roomSchema.index({ roomNumber: 1 });
+roomSchema.index({ housekeepingStatus: 1 });
+roomSchema.index({ isAvailable: 1 });
 
 module.exports = mongoose.model('Room', roomSchema);

@@ -42,7 +42,10 @@ const createRoom = asyncHandler(async (req, res) => {
     console.log("Request body:", req.body);
     console.log("Request files:", req.files ? req.files.length : 0);
     
-    const { branchId, floor, roomType, price, description, amenities, capacity, roomNumber } = req.body;
+    const { 
+      branchId, floor, roomType, price, description, amenities, capacity, roomNumber,
+      hourlyPricing, housekeepingStatus, cleaningNotes 
+    } = req.body;
 
     if (!branchId || !floor || !price) {
       return res.status(400).json({ message: "Branch, floor and price are required" });
@@ -62,6 +65,7 @@ const createRoom = asyncHandler(async (req, res) => {
 
     let parsedAmenities = {};
     let parsedCapacity = { adults: 2, children: 0 };
+    let parsedHourlyPricing = { enabled: false, threeHours: 0, sixHours: 0, nineHours: 0, twelveHours: 0 };
     
     try {
       parsedAmenities = typeof amenities === 'string' ? JSON.parse(amenities) : (amenities || {});
@@ -74,6 +78,12 @@ const createRoom = asyncHandler(async (req, res) => {
     } catch (e) {
       console.error("Error parsing capacity:", e);
     }
+    
+    try {
+      parsedHourlyPricing = typeof hourlyPricing === 'string' ? JSON.parse(hourlyPricing) : (hourlyPricing || parsedHourlyPricing);
+    } catch (e) {
+      console.error("Error parsing hourlyPricing:", e);
+    }
 
     const room = new Room({
       branchId,
@@ -85,6 +95,9 @@ const createRoom = asyncHandler(async (req, res) => {
       amenities: parsedAmenities,
       capacity: parsedCapacity,
       roomNumber: roomNumber || '',
+      hourlyPricing: parsedHourlyPricing,
+      housekeepingStatus: housekeepingStatus || 'clean',
+      cleaningNotes: cleaningNotes || '',
     });
 
     const createdRoom = await room.save();
@@ -125,10 +138,23 @@ const getRoomById = asyncHandler(async (req, res) => {
 // Update room
 const updateRoom = asyncHandler(async (req, res) => {
   try {
+    const fs = require('fs');
+    const logData = {
+      timestamp: new Date().toISOString(),
+      roomId: req.params.id,
+      hourlyPricing: req.body.hourlyPricing,
+      allBody: req.body
+    };
+    fs.appendFileSync('room-update-log.txt', JSON.stringify(logData, null, 2) + '\n---\n');
+    
     console.log("=== UPDATE ROOM ===", req.params.id);
     console.log("Request body:", req.body);
+    console.log("hourlyPricing from request:", req.body.hourlyPricing);
     
-    const { floor, roomType, price, description, amenities, capacity, roomNumber, isAvailable, existingImages } = req.body;
+    const { 
+      floor, roomType, price, description, amenities, capacity, roomNumber, isAvailable, existingImages,
+      hourlyPricing, housekeepingStatus, cleaningNotes, lastCleanedBy 
+    } = req.body;
     
     const room = await Room.findById(req.params.id);
     if (!room) {
@@ -181,9 +207,43 @@ const updateRoom = asyncHandler(async (req, res) => {
         console.error("Error parsing capacity:", e);
       }
     }
+    
+    // Handle hourly pricing update
+    if (hourlyPricing) {
+      try {
+        const parsed = typeof hourlyPricing === 'string' ? JSON.parse(hourlyPricing) : hourlyPricing;
+        console.log("✅ Parsed hourlyPricing:", parsed);
+        updateData.hourlyPricing = parsed;
+      } catch (e) {
+        console.error("❌ Error parsing hourlyPricing:", e);
+      }
+    } else {
+      console.log("⚠️ No hourlyPricing in request body");
+    }
+    
+    // Handle housekeeping status update
+    if (housekeepingStatus !== undefined) {
+      updateData.housekeepingStatus = housekeepingStatus;
+      
+      // If status is being set to 'clean' or 'inspected', update lastCleanedAt
+      if (housekeepingStatus === 'clean' || housekeepingStatus === 'inspected') {
+        updateData.lastCleanedAt = new Date();
+        if (lastCleanedBy) {
+          updateData.lastCleanedBy = lastCleanedBy;
+        }
+      }
+    }
+    
+    if (cleaningNotes !== undefined) {
+      updateData.cleaningNotes = cleaningNotes;
+    }
+
+    console.log("📝 Final updateData being sent to database:", updateData);
+    console.log("📝 updateData.hourlyPricing:", updateData.hourlyPricing);
 
     const updatedRoom = await Room.findByIdAndUpdate(req.params.id, updateData, { new: true });
-    console.log("Room updated successfully:", req.params.id);
+    console.log("✅ Room updated successfully:", req.params.id);
+    console.log("✅ Updated room hourlyPricing:", updatedRoom.hourlyPricing);
     res.json(updatedRoom);
   } catch (error) {
     console.error("Error updating room:", error);
