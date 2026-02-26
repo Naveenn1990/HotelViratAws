@@ -1,6 +1,7 @@
 const Invoice = require('../model/counterInvoiceModel');
 const Branch = require('../model/Branch');
 const BillNumberService = require('../services/billNumberService');
+const BillNumberQueueService = require('../services/billNumberQueueService');
 const asyncHandler = require('express-async-handler');
 
 exports.addInvoice = asyncHandler(async (req, res) => {
@@ -74,7 +75,7 @@ exports.addInvoice = asyncHandler(async (req, res) => {
   });
 });
 
-// Get next bill number for self-service
+// Get next bill number for self-service (IMPROVED with queue)
 exports.getNextBillNumber = asyncHandler(async (req, res) => {
   const { branchId } = req.params;
   const { category } = req.query; // Get category from query parameter
@@ -100,8 +101,8 @@ exports.getNextBillNumber = asyncHandler(async (req, res) => {
   }
 
   try {
-    // Get next bill number using the service with category
-    const billNumber = await BillNumberService.getNextBillNumber(branchId, category);
+    // IMPROVED: Use queue service to handle rapid concurrent requests
+    const billNumber = await BillNumberQueueService.requestBillNumber(branchId, category);
     
     console.log(`🧾 Generated bill number ${billNumber} for category "${category}" in branch ${branchId}`);
     
@@ -121,7 +122,7 @@ exports.getNextBillNumber = asyncHandler(async (req, res) => {
   }
 });
 
-// Get next KOT number for self-service
+// Get next KOT number for self-service (IMPROVED with queue)
 exports.getNextKOTNumber = asyncHandler(async (req, res) => {
   const { branchId } = req.params;
 
@@ -139,8 +140,8 @@ exports.getNextKOTNumber = asyncHandler(async (req, res) => {
   }
 
   try {
-    // Get next KOT number using the service
-    const kotNumber = await BillNumberService.getNextKOTNumber(branchId);
+    // IMPROVED: Use queue service to handle rapid concurrent requests
+    const kotNumber = await BillNumberQueueService.requestKOTNumber(branchId);
     
     console.log(`🍽️ Generated KOT number ${kotNumber} for branch ${branchId}`);
     
@@ -162,7 +163,6 @@ exports.getNextKOTNumber = asyncHandler(async (req, res) => {
 // Get current counters for debugging
 exports.getCurrentCounters = asyncHandler(async (req, res) => {
   const { branchId } = req.params;
-  const { category, date } = req.query;
 
   // Validate branchId
   if (!branchId) {
@@ -171,12 +171,17 @@ exports.getCurrentCounters = asyncHandler(async (req, res) => {
   }
 
   try {
-    const counters = await BillNumberService.getCurrentCounters(branchId, category, date);
+    const counters = await BillNumberService.getCurrentCounters(branchId);
+    
+    // Also get queue status
+    const queueStatus = BillNumberQueueService.getQueueStatus();
     
     res.status(200).json({
       success: true,
+      branchId,
       counters,
-      message: 'Current counters retrieved successfully'
+      queueStatus,
+      message: 'Current counters and queue status retrieved successfully'
     });
     
   } catch (error) {

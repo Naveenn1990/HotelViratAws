@@ -28,6 +28,14 @@ const categorySchema = new mongoose.Schema({
       type: String,
       required: [true, 'Branch address is required']
     }
+  },
+  loginPassword: {
+    type: String,
+    default: null
+  },
+  cancelOrderPassword: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true

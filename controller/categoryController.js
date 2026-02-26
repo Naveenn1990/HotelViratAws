@@ -6,9 +6,9 @@ const { uploadFile2, deleteFile } = require('../middleware/AWS');
 // Create a new category
 exports.createCategory = async (req, res) => {
   try {
-    const { name, branchId, branchName, branchAddress, _id } = req.body;
+    const { name, branchId, branchName, branchAddress, _id, loginPassword, cancelOrderPassword } = req.body;
     
-    console.log('Received category data:', { name, branchId, branchName, branchAddress, _id });
+    console.log('Received category data:', { name, branchId, branchName, branchAddress, _id, loginPassword: loginPassword ? '***' : null, cancelOrderPassword: cancelOrderPassword ? '***' : null });
     
     // Validate required fields
     if (!branchId || branchId.trim() === '') {
@@ -55,7 +55,9 @@ exports.createCategory = async (req, res) => {
       name,
       branchId, // Keep for backward compatibility
       branch: branchData,
-      image
+      image,
+      loginPassword: loginPassword || null,
+      cancelOrderPassword: cancelOrderPassword || null
     };
     
     // If _id is provided (from dual backend sync), use it
@@ -109,8 +111,16 @@ exports.getCategoryById = async (req, res) => {
 // Update a category
 exports.updateCategory = async (req, res) => {
   try {
-    const { name, branchId, branchName, branchAddress } = req.body;
+    const { name, branchId, branchName, branchAddress, loginPassword, cancelOrderPassword } = req.body;
     const updateData = { name };
+    
+    // Update passwords if provided
+    if (loginPassword !== undefined) {
+      updateData.loginPassword = loginPassword || null;
+    }
+    if (cancelOrderPassword !== undefined) {
+      updateData.cancelOrderPassword = cancelOrderPassword || null;
+    }
     
     // Update branch data if provided
     if (branchId) {
