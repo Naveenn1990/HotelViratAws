@@ -44,7 +44,7 @@ app.use(limiter);
 //           "data:",
 //           "http://localhost:3000",
 //           "http://localhost:5173",
-//           "https://hotelvirat.com",
+//           "http://localhost:9000",
 //           "https://hotelvirat.s3.amazonaws.com"
 //         ],
 //       },
