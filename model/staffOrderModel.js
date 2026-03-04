@@ -31,6 +31,10 @@ const sOrderItemSchema = new mongoose.Schema({
     ref: "Categoryy",
     required: false,
   },
+  kotNumber: {
+    type: String, // KOT number for this item
+    required: false,
+  },
 })
 
 const staffOrderSchema = new mongoose.Schema(
@@ -64,7 +68,18 @@ const staffOrderSchema = new mongoose.Schema(
     orderId: {
       type: String,
       required: true,
+      // Removed unique constraint - will use compound index instead
+    },
+    kotNumber: {
+      type: String,
+      required: false, // Will be auto-generated
       unique: true,
+      sparse: true, // Allow null values but ensure uniqueness when present
+    },
+    parentOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "StaffOrder",
+      required: false, // Only set for additional orders (when adding more items)
     },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -142,6 +157,14 @@ const staffOrderSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    billPrinted: {
+      type: Boolean,
+      default: false, // Track if bill has been printed
+    },
+    billPrintedAt: {
+      type: Date,
+      required: false, // When the bill was printed
+    },
     orderTime: {
       type: Date,
       required: true,
@@ -176,79 +199,99 @@ staffOrderSchema.pre("validate", function (next) {
   next()
 })
 
-// Category code mapping for order IDs
-const getCategoryCode = async (items) => {
-  if (!items || items.length === 0) return "RES"
 
-  try {
-    // Get the first item's category to determine the code
-    const firstItem = items[0]
-    const categoryId = firstItem.categoryId?._id || firstItem.categoryId
-
-    if (categoryId) {
-      const Category = mongoose.model("Categoryy")
-      const category = await Category.findById(categoryId)
-
-      if (category && category.name) {
-        const categoryName = category.name.toLowerCase()
-        // Map category names to codes
-        if (categoryName.includes("temple")) {
-          return "TM" // Temple Meals
-        } else if (categoryName.includes("self")) {
-          return "SS" // Self Service
-        } else if (categoryName.includes("restarunt") || categoryName.includes("restaurant")) {
-          return "RES" // Restaurant
-        } else if (categoryName.includes("bar") || categoryName.includes("drink")) {
-          return "BAR"
-        }
-        // Use first 2-3 letters of category name as code
-        return category.name.substring(0, 3).toUpperCase()
-      }
-    }
-  } catch (error) {
-    console.log("Error getting category code:", error.message)
-  }
-
-  return "RES" // Default code
-}
-
-// Generate unique order ID before saving (format: DDMMYYYY-CODE-sequence)
+// Generate unique order ID and KOT number before saving
 staffOrderSchema.pre("save", async function (next) {
-  if (
-    !this.orderId ||
-    this.orderId.startsWith("GUEST-") ||
-    this.orderId.startsWith("STAFF-")
-  ) {
-    const now = new Date()
-    const day = String(now.getDate()).padStart(2, "0")
-    const month = String(now.getMonth() + 1).padStart(2, "0")
-    const year = now.getFullYear()
-    const datePrefix = `${day}${month}${year}`
-
-    // Get category code from items
-    const categoryCode = await getCategoryCode(this.items)
-
-    // Find the last order with the same date prefix and category code to get the sequence
+  try {
     const StaffOrder = mongoose.model("StaffOrder")
-    const lastOrder = await StaffOrder.findOne({
-      orderId: { $regex: `^${datePrefix}-${categoryCode}-` },
-    }).sort({ createdAt: -1 })
+    
+    // Generate Order ID if needed
+    if (
+      !this.orderId ||
+      this.orderId.startsWith("GUEST-") ||
+      this.orderId.startsWith("STAFF-") ||
+      this.orderId.startsWith("TEMP-") ||
+      this.orderId.startsWith("MOBILE-")
+    ) {
+      console.log(`🔍 Generating order ID for branch: ${this.branchName}, category: ${this.categoryName}`)
 
-    let sequence = 1
-    if (lastOrder && lastOrder.orderId) {
-      const parts = lastOrder.orderId.split("-")
-      const lastSequence = parseInt(parts[2]) || 0
-      sequence = lastSequence + 1
+      // Find all orders for this branch and EXACT category name (not just prefix)
+      // This ensures "Rns" and "RNS self Service" have separate sequences
+      const filter = {
+        branchId: this.branchId // Same branch
+      }
+      
+      // Add category filter only if category name exists
+      if (this.categoryName) {
+        filter.categoryName = this.categoryName // Exact category name match
+      } else {
+        // If no category, filter by orders with no category
+        filter.categoryName = { $in: [null, undefined, ""] }
+      }
+
+      // Find all orders for this category to determine the next sequence number
+      const allOrders = await StaffOrder.find(filter).sort({ createdAt: -1 })
+
+      console.log(`📊 Found ${allOrders.length} existing orders for category ${this.categoryName}`)
+      if (allOrders.length > 0) {
+        console.log(`📋 Sample order IDs:`, allOrders.slice(0, 5).map(o => o.orderId))
+      }
+
+      let maxSequence = 0
+      
+      // Extract sequence numbers from order IDs
+      allOrders.forEach(order => {
+        if (order.orderId) {
+          // Try to parse as pure number first (001, 002, etc.)
+          const pureNumber = parseInt(order.orderId)
+          if (!isNaN(pureNumber)) {
+            console.log(`  ✓ Parsed "${order.orderId}" -> ${pureNumber}`)
+            if (pureNumber > maxSequence) {
+              maxSequence = pureNumber
+            }
+          } else {
+            // Fallback: Extract number from format with prefix: "CAT-001", "CAT-002", etc.
+            const match = order.orderId.match(/-(\d+)$/)
+            if (match) {
+              const number = parseInt(match[1])
+              console.log(`  ✓ Parsed "${order.orderId}" -> ${number}`)
+              if (!isNaN(number) && number > maxSequence) {
+                maxSequence = number
+              }
+            }
+          }
+        }
+      })
+
+      // Next sequence is max + 1
+      const sequence = maxSequence + 1
+
+      console.log(`🎯 Max sequence found: ${maxSequence}, Next sequence: ${sequence}`)
+
+      // Format as just the number: 001, 002, 003, etc. (no prefix)
+      this.orderId = sequence.toString().padStart(3, '0')
+      
+      console.log(`✅ Generated order ID: ${this.orderId}`)
     }
-
-    this.orderId = `${datePrefix}-${categoryCode}-${sequence}`
+    
+    // Generate KOT Number ONLY for Restaurant category (only for new orders)
+    // SKIP if kotNumber is already set by controller (to avoid overwriting global KOT)
+    if (!this.kotNumber && this.isNew) {
+      console.log(`⚠️ No KOT number set by controller, skipping pre-save KOT generation`)
+      console.log(`ℹ️ Controller should set KOT using global KotCounter for consistency`)
+    }
+    
+    next()
+  } catch (error) {
+    console.error("❌ Error in pre-save hook:", error)
+    next(error)
   }
-  next()
 })
 
 // Add indexes for faster queries
 staffOrderSchema.index({ userId: 1 })
-staffOrderSchema.index({ orderId: 1 })
+// Removed simple orderId index - using compound index instead
+// REMOVED: staffOrderSchema.index({ kotNumber: 1 }) - kotNumber should NOT be unique
 staffOrderSchema.index({ branchId: 1, tableId: 1 })
 staffOrderSchema.index({ branchName: 1, tableNumber: 1 })
 staffOrderSchema.index({ status: 1 })
@@ -256,5 +299,7 @@ staffOrderSchema.index({ paymentStatus: 1 })
 staffOrderSchema.index({ paymentMethod: 1 })
 staffOrderSchema.index({ isGuestOrder: 1 }) // NEW INDEX
 staffOrderSchema.index({ customerMobile: 1 }) // NEW INDEX for guest orders
+// Compound unique index: orderId must be unique per branch and category
+staffOrderSchema.index({ branchId: 1, categoryName: 1, orderId: 1 }, { unique: true })
 
 module.exports = mongoose.model("StaffOrder", staffOrderSchema)

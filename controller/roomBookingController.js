@@ -70,10 +70,10 @@ const createRoomBooking = asyncHandler(async (req, res) => {
       });
     }
 
-    if (checkOut <= checkIn) {
+    if (checkOut < checkIn) {
       return res.status(400).json({
         success: false,
-        message: "Check-out date must be after check-in date"
+        message: "Check-out date cannot be before check-in date"
       });
     }
 

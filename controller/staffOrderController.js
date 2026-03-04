@@ -19,6 +19,8 @@ exports.createStaffOrderAfterPayment = async (req, res) => {
       notes,
       branchId,
       tableId,
+      categoryId, // Add categoryId
+      categoryName, // Add categoryName
     } = req.body
 
     console.log("Received staff order creation request with userId:", userId)
@@ -71,14 +73,16 @@ exports.createStaffOrderAfterPayment = async (req, res) => {
       })
     }
 
-    // Check if order already exists
-    const existingOrder = await StaffOrder.findOne({ orderId })
-    if (existingOrder) {
-      return res.status(200).json({
-        success: true,
-        message: "Order already exists",
-        order: existingOrder,
-      })
+    // Check if order already exists (only if orderId is provided)
+    if (orderId) {
+      const existingOrder = await StaffOrder.findOne({ orderId })
+      if (existingOrder) {
+        return res.status(200).json({
+          success: true,
+          message: "Order already exists",
+          order: existingOrder,
+        })
+      }
     }
 
     // Process cart items
@@ -89,6 +93,7 @@ exports.createStaffOrderAfterPayment = async (req, res) => {
       quantity: item.quantity,
       image: item.image || "",
       description: item.description || "",
+      categoryId: item.categoryId || categoryId, // Add categoryId to items
     }))
 
     // Calculate totals
@@ -100,8 +105,10 @@ exports.createStaffOrderAfterPayment = async (req, res) => {
     // Prepare order data
     const orderData = {
       userId, // Include userId in order data
-      orderId,
+      orderId: orderId || `STAFF-${Date.now()}`, // Temporary ID, will be replaced by pre-save hook
       branchName: restaurant.name,
+      categoryId: categoryId, // Add categoryId
+      categoryName: categoryName, // Add categoryName
       tableNumber: table.number.toString(),
       peopleCount,
       items: orderItems,
@@ -244,33 +251,74 @@ exports.createGuestOrder = async (req, res) => {
     // Import Table model
     const Table = require("../model/Table")
 
-    let tableId = new mongoose.Types.ObjectId() // Default to a new ObjectId
+    // Use the tableId from request if provided, otherwise try to find by table number
+    let tableId = req.body.tableId || new mongoose.Types.ObjectId()
+    
+    try {
+      if (req.body.tableId) {
+        // If tableId is provided, use it directly and reserve the table
+        console.log(`✅ Using provided tableId: ${req.body.tableId}`)
+        
+        const table = await Table.findById(req.body.tableId)
+        if (table) {
+          // Reserve the table when order is created
+          await Table.findByIdAndUpdate(
+            req.body.tableId, 
+            { status: "reserved" }, 
+            { new: true }
+          )
+          console.log(`✅ Table ${tableNumber} (ID: ${req.body.tableId}) status updated to reserved`)
+          tableId = req.body.tableId
+        } else {
+          console.log(`⚠️ Table with ID ${req.body.tableId} not found in database`)
+        }
+      } else {
+        // Fallback: Try to find table by branch and number (string comparison)
+        console.log(`🔍 No tableId provided, searching by branchId and tableNumber`)
+        const table = await Table.findOne({
+          branchId: branchId,
+          number: tableNumber, // Use string comparison, not parseInt
+        })
 
-    // Only try to find table if tableNumber is a valid number (not "Counter" or other text)
-    const tableNum = Number.parseInt(tableNumber)
-    if (!isNaN(tableNum)) {
-      // Find the table by branch and table number
-      const table = await Table.findOne({
-        branchId: branchId,
-        number: tableNum,
-      })
-
-      // If table exists, use its ID and update its status
-      if (table) {
-        tableId = table._id
-
-        // Update table status to reserved
-        await Table.findByIdAndUpdate(tableId, { status: "reserved" }, { new: true })
-
-        console.log(`Table ${tableNumber} status updated to reserved`)
+        if (table) {
+          tableId = table._id
+          console.log(`✅ Found table by number: ${tableId}`)
+          
+          // Reserve the table
+          await Table.findByIdAndUpdate(
+            tableId, 
+            { status: "reserved" }, 
+            { new: true }
+          )
+          console.log(`✅ Table ${tableNumber} status updated to reserved`)
+        } else {
+          console.log(`⚠️ Table ${tableNumber} not found, using generated tableId`)
+        }
       }
-    } else {
-      console.log(`Table number "${tableNumber}" is not a number, skipping table lookup`)
+    } catch (tableError) {
+      console.error("❌ Error finding/updating table:", tableError)
+      // Continue with generated tableId
     }
 
+    // Generate initial KOT number using global counter
+    const KotCounter = require("../model/kotCounterModel")
+    const initialKotNumber = await KotCounter.getNextKotNumber(branchId)
+    const kotGeneratedAt = new Date()
+    
+    console.log(`🎫 Using global KOT number: ${initialKotNumber} for order`)
+    
+    // Add KOT information to each item
+    const itemsWithKot = items.map(item => ({
+      ...item,
+      kotNumber: initialKotNumber,
+      kotGeneratedAt: kotGeneratedAt,
+      isNewItem: true,
+    }))
+
     // Create the guest order using StaffOrder model
+    // Note: orderId will be auto-generated by the model's pre-save hook based on branch and category
     const guestOrder = new StaffOrder({
-      orderId: orderId || `GUEST-${Date.now()}`,
+      orderId: orderId || `GUEST-${Date.now()}`, // Temporary ID, will be replaced by pre-save hook
       customerName: customerName.trim(),
       customerMobile: customerMobile.trim(),
       branchId: branchId,
@@ -280,7 +328,7 @@ exports.createGuestOrder = async (req, res) => {
       tableId: tableId,
       tableNumber,
       peopleCount: Number.parseInt(peopleCount) || 1,
-      items,
+      items: itemsWithKot,
       subtotal: Number.parseFloat(subtotal) || 0,
       tax: Number.parseFloat(tax) || 0,
       serviceCharge: Number.parseFloat(serviceCharge) || 0,
@@ -292,6 +340,13 @@ exports.createGuestOrder = async (req, res) => {
       notes: notes || `Guest order from Table ${tableNumber}`,
       status: status || "pending", // Use provided status or default to pending
       isGuestOrder: true, // Mark as guest order
+      kotCounter: 1, // First KOT for this order
+      kots: [{
+        kotNumber: initialKotNumber,
+        items: items.map(item => item.name),
+        generatedAt: kotGeneratedAt,
+        itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      }],
     })
 
     await guestOrder.save()
@@ -398,7 +453,7 @@ exports.getAvailableStatuses = async (req, res) => {
 // Get all orders (both staff and guest) - UPDATED FUNCTION
 exports.getAllStaffOrders = async (req, res) => {
   try {
-    const { branchId, branchName, tableId, tableNumber, status, paymentStatus, userId, search, orderType } = req.query
+    const { branchId, branchName, tableId, tableNumber, status, paymentStatus, userId, search, orderType, startDate, endDate, page = 1, limit = 50 } = req.query
 
     // Build filter based on query parameters
     const filter = {}
@@ -423,6 +478,19 @@ exports.getAllStaffOrders = async (req, res) => {
     }
     // If orderType is "all" or not specified, don't add filter
 
+    // NEW: Date range filter
+    if (startDate || endDate) {
+      filter.orderTime = {}
+      if (startDate) {
+        filter.orderTime.$gte = new Date(startDate)
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999) // Include the entire end date
+        filter.orderTime.$lte = endDateTime
+      }
+    }
+
     // Add search functionality
     if (search) {
       const searchRegex = new RegExp(search, "i")
@@ -435,15 +503,28 @@ exports.getAllStaffOrders = async (req, res) => {
       ]
     }
 
+    // Calculate pagination
+    const pageNum = parseInt(page)
+    const limitNum = parseInt(limit)
+    const skip = (pageNum - 1) * limitNum
+
+    // Get total count for pagination
+    const totalCount = await StaffOrder.countDocuments(filter)
+
     const staffOrders = await StaffOrder.find(filter)
       .populate("branchId", "name address")
       .populate("tableId", "number capacity")
       .populate("userId", "name mobile") // This will be null for guest orders
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
 
     res.status(200).json({
       success: true,
       count: staffOrders.length,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limitNum),
+      currentPage: pageNum,
       orders: staffOrders,
     })
   } catch (error) {
@@ -521,16 +602,24 @@ exports.getStaffOrderByOrderId = async (req, res) => {
 // Update a staff order status - EXISTING FUNCTION (works for both staff and guest orders)
 exports.updateStaffOrderStatus = async (req, res) => {
   try {
-    const { status, paymentStatus, paymentMethod, notes } = req.body
+    const { status, paymentStatus, paymentMethod, notes, billPrinted, billPrintedAt } = req.body
 
     console.log(`Backend: Updating order ${req.params.id}`)
-    console.log(`Backend: Update data:`, { status, paymentStatus, paymentMethod, notes })
+    console.log(`Backend: Update data:`, { status, paymentStatus, paymentMethod, notes, billPrinted })
 
     const updateData = {}
     if (status) updateData.status = status
     if (paymentStatus) updateData.paymentStatus = paymentStatus
     if (paymentMethod) updateData.paymentMethod = paymentMethod
     if (notes !== undefined) updateData.notes = notes
+    if (billPrinted !== undefined) {
+      updateData.billPrinted = billPrinted
+      if (billPrintedAt) {
+        updateData.billPrintedAt = new Date(billPrintedAt)
+      } else if (billPrinted) {
+        updateData.billPrintedAt = new Date()
+      }
+    }
 
     // Validate order status if provided
     if (status) {
@@ -671,7 +760,7 @@ exports.bulkDeleteStaffOrders = async (req, res) => {
   }
 }
 
-// Add items to an existing staff order - EXISTING FUNCTION
+// Add items to an existing staff order - EXISTING FUNCTION (UPDATED FOR KOT)
 exports.addItemsToStaffOrder = async (req, res) => {
   try {
     const { items } = req.body
@@ -701,30 +790,64 @@ exports.addItemsToStaffOrder = async (req, res) => {
       })
     }
 
-    // Process each new item
-    for (const item of items) {
-      // Check if the item already exists in the order
-      const existingItemIndex = staffOrder.items.findIndex(
-        (orderItem) => orderItem.menuItemId.toString() === item.menuItemId,
-      )
+    // Generate new KOT number using global counter
+    const KotCounter = require("../model/kotCounterModel")
+    const newKotNumber = await KotCounter.getNextKotNumber(staffOrder.branchId)
+    const kotGeneratedAt = new Date()
+    
+    console.log(`=== ADDING ITEMS TO ORDER ${staffOrder.orderId} ===`)
+    console.log(`Current items count: ${staffOrder.items.length}`)
+    console.log(`Current KOT counter: ${staffOrder.kotCounter || 0}`)
+    console.log(`🎫 Generating new global KOT: ${newKotNumber}`)
 
-      if (existingItemIndex !== -1) {
-        // Update quantity of existing item
-        staffOrder.items[existingItemIndex].quantity += item.quantity
-      } else {
-        // Add new item to order
-        staffOrder.items.push({
-          menuItemId: item.menuItemId,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image || "",
-          description: item.description || "",
-        })
+    // Track newly added items for KOT
+    const newlyAddedItems = []
+
+    // Process each new item - ALWAYS create new entries with new KOT
+    // Don't merge with existing items, even if they're the same
+    for (const item of items) {
+      const newItem = {
+        menuItemId: item.menuItemId,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image || "",
+        description: item.description || "",
+        kotNumber: newKotNumber,
+        kotGeneratedAt: kotGeneratedAt,
+        isNewItem: true,
       }
+      
+      // Always add as a new item entry with the new KOT number
+      // This ensures each reorder gets its own KOT, even for duplicate items
+      staffOrder.items.push(newItem)
+      newlyAddedItems.push(item.name)
+      
+      console.log(`✅ Added item: ${item.name} x ${item.quantity} to KOT ${newKotNumber}`)
+      
       // Update subtotal
       staffOrder.subtotal += item.price * item.quantity
     }
+
+    // Increment order's KOT counter
+    const kotCounter = (staffOrder.kotCounter || 0) + 1
+    staffOrder.kotCounter = kotCounter
+    
+    console.log(`📊 New KOT counter: ${kotCounter}`)
+    console.log(`📊 Total items after addition: ${staffOrder.items.length}`)
+    
+    // Add KOT record to order
+    if (!staffOrder.kots) {
+      staffOrder.kots = []
+    }
+    staffOrder.kots.push({
+      kotNumber: newKotNumber,
+      items: newlyAddedItems,
+      generatedAt: kotGeneratedAt,
+      itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+    })
+
+    console.log(`📊 Total KOTs: ${staffOrder.kots.length}`)
 
     // Recalculate tax, service charge, and total
     staffOrder.tax = staffOrder.subtotal * 0.05
@@ -732,12 +855,21 @@ exports.addItemsToStaffOrder = async (req, res) => {
     staffOrder.totalAmount = staffOrder.subtotal
     staffOrder.grandTotal = staffOrder.subtotal + staffOrder.tax + staffOrder.serviceCharge
 
+    // Mark items array as modified to ensure MongoDB saves it
+    staffOrder.markModified('items')
+    staffOrder.markModified('kots')
+    
     await staffOrder.save()
+
+    console.log(`=== ORDER SAVED SUCCESSFULLY ===`)
+    console.log(`✅ New global KOT ${newKotNumber} generated with ${newlyAddedItems.length} items`)
+    console.log(`📊 Order now has ${staffOrder.items.length} total items across ${staffOrder.kots.length} KOTs`)
 
     res.status(200).json({
       success: true,
       message: "Items added to order successfully",
       order: staffOrder,
+      newKotNumber: newKotNumber, // Return the new KOT number
     })
   } catch (error) {
     console.error("Error adding items to order:", error)

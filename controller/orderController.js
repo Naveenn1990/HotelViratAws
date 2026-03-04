@@ -416,6 +416,7 @@ exports.getAllOrders = async (req, res) => {
       limit = 10,
       status,
       branchId,
+      categoryId,
       userId,
       fromDate,
       toDate,
@@ -436,6 +437,11 @@ exports.getAllOrders = async (req, res) => {
         return res.status(400).json({ message: "Invalid Branch ID format" })
       }
       query.branchId = branchId
+    }
+
+    if (categoryId) {
+      // Filter orders that have items with this categoryId
+      query["items.categoryId"] = categoryId
     }
 
     if (userId) {
