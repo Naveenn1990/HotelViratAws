@@ -376,7 +376,7 @@ const createWalkInBooking = asyncHandler(async (req, res) => {
 // Get all room bookings
 const getRoomBookings = asyncHandler(async (req, res) => {
   try {
-    const { status, roomId, branchId, page = 1, limit = 20 } = req.query;
+    const { status, roomId, branchId, userId, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (status && status !== 'all') {
@@ -387,6 +387,9 @@ const getRoomBookings = asyncHandler(async (req, res) => {
     }
     if (branchId) {
       filter.branchId = branchId;
+    }
+    if (userId) {
+      filter.userId = userId;
     }
 
     const bookings = await RoomBooking.find(filter)

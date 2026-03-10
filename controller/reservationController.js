@@ -100,12 +100,12 @@ const createReservation = async (req, res) => {
   }
 }
 
-// Get all reservations
+// Get all reservations with pagination
 const getReservations = async (req, res) => {
   try {
-    console.log("Fetching reservations...")
+    console.log("Fetching reservations with query:", req.query)
 
-    const { tableId, customerId, status, date } = req.query
+    const { tableId, customerId, status, date, page = 1, limit = 10 } = req.query
 
     const query = {}
 
@@ -119,6 +119,15 @@ const getReservations = async (req, res) => {
       query.reservationDate = { $gte: startDate, $lt: endDate }
     }
 
+    // Convert page and limit to numbers
+    const pageNum = parseInt(page, 10)
+    const limitNum = parseInt(limit, 10)
+    const skip = (pageNum - 1) * limitNum
+
+    // Get total count for pagination
+    const totalCount = await Reservation.countDocuments(query)
+
+    // Fetch paginated reservations
     const reservations = await Reservation.find(query)
       .populate({
         path: "tableId",
@@ -131,6 +140,8 @@ const getReservations = async (req, res) => {
       .populate("branchId", "name address")
       .populate("customerId", "name mobileNumber email")
       .sort({ createdAt: -1 }) // Sort by creation date, newest first
+      .skip(skip)
+      .limit(limitNum)
 
     // Fix reservations that don't have branchId set
     const fixedReservations = []
@@ -153,8 +164,21 @@ const getReservations = async (req, res) => {
       fixedReservations.push(reservationObj)
     }
 
-    console.log("Found reservations:", fixedReservations.length)
-    res.json(fixedReservations)
+    console.log(`Found ${fixedReservations.length} reservations out of ${totalCount} total`)
+
+    // Return paginated response
+    res.json({
+      success: true,
+      data: fixedReservations,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalCount / limitNum),
+        totalCount: totalCount,
+        limit: limitNum,
+        hasNextPage: pageNum < Math.ceil(totalCount / limitNum),
+        hasPrevPage: pageNum > 1
+      }
+    })
   } catch (err) {
     console.error("Error fetching reservations:", err)
     res.status(500).json({ error: err.message })
