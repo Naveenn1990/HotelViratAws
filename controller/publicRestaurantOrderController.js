@@ -286,3 +286,35 @@ exports.getOrdersByMobile = async (req, res) => {
     });
   }
 };
+
+// Get orders by session ID
+exports.getOrdersBySession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID is required'
+      });
+    }
+
+    const orders = await PublicRestaurantOrder.find({ sessionId })
+      .sort({ orderTime: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders
+    });
+
+  } catch (error) {
+    console.error('Error fetching orders by session:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch orders',
+      error: error.message
+    });
+  }
+};
