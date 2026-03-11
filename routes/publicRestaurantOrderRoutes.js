@@ -6,6 +6,7 @@ const publicRestaurantOrderController = require('../controller/publicRestaurantO
 router.post('/create', publicRestaurantOrderController.createPublicOrder);
 router.get('/order/:orderId', publicRestaurantOrderController.getOrderById);
 router.get('/customer/:mobile', publicRestaurantOrderController.getOrdersByMobile);
+router.get('/session/:sessionId', publicRestaurantOrderController.getOrdersBySession);
 
 // Admin/Staff routes (add authentication middleware if needed)
 router.get('/', publicRestaurantOrderController.getAllPublicOrders); // GET /public-order
