@@ -37,7 +37,7 @@ app.use(cors({
 //           "data:",
 //           "http://localhost:3000",
 //           "http://localhost:5173",
-//           "http://localhost:9000",
+//           "https://hotelvirat.com",
 //           "https://hotelvirat.s3.amazonaws.com"
 //         ],
 //       },
