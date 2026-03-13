@@ -23,6 +23,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 })); // Vite dev aur production
+// Define the rate limiter
 
 // Use morgan for logging - DISABLED to reduce log noise
 // app.use(morgan("dev"));
@@ -36,7 +37,7 @@ app.use(cors({
 //           "data:",
 //           "http://localhost:3000",
 //           "http://localhost:5173",
-//           "http://localhost:9000",
+//           "https://hotelvirat.com",
 //           "https://hotelvirat.s3.amazonaws.com"
 //         ],
 //       },

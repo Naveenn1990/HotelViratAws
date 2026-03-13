@@ -9,13 +9,7 @@ const asyncHandler = require("express-async-handler")
 const TAX_RATE = 0.05 // 5%
 const SERVICE_CHARGE_RATE = 0.1 // 10%
 exports.createCounterOrder = asyncHandler(async (req, res) => {
-  console.log('🚀 COUNTER ORDER CONTROLLER: createCounterOrder called');
-  console.log('📦 Request body keys:', Object.keys(req.body));
-  console.log('📦 Category info from request:', {
-    branchName: req.body.branchName,
-    categoryId: req.body.categoryId,
-    categoryName: req.body.categoryName
-  });
+
   
   const {
     userId,
@@ -80,9 +74,9 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
   let counterUser = null
   try {
     counterUser = await Counter.findById(userId)
-    if (!counterUser) {
-      console.log(`Counter user ${userId} not found, proceeding with order anyway`)
-    }
+    // if (!counterUser) {
+    //   console.log(`Counter user ${userId} not found, proceeding with order anyway`)
+    // }
   } catch (err) {
     console.log(`Error finding counter user: ${err.message}, proceeding with order anyway`)
   }
@@ -99,9 +93,9 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
   if (invoiceId) {
     try {
       invoice = await CounterInvoice.findById(invoiceId)
-      if (!invoice) {
-        console.log(`Invoice ${invoiceId} not found, proceeding with order anyway`)
-      }
+      // if (!invoice) {
+      //   console.log(`Invoice ${invoiceId} not found, proceeding with order anyway`)
+      // }
     } catch (err) {
       console.log(`Error finding invoice: ${err.message}, proceeding with order anyway`)
     }
@@ -120,7 +114,7 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     const menuItem = await Menu.findById(item.menuItemId)
     if (!menuItem) {
       // Skip validation if menu item not found - use provided price
-      console.log(`Menu item ${item.name} not found in database, using provided price`)
+      // console.log(`Menu item ${item.name} not found in database, using provided price`)
       calculatedSubtotal += item.price * item.quantity
       continue
     }
@@ -135,14 +129,14 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
     }
 
     // Skip strict price validation - just log if there's a mismatch
-    if (dbPrice !== undefined && Math.abs(dbPrice - item.price) > 0.01) {
-      console.log(`Price difference for ${item.name}: DB=${dbPrice}, Sent=${item.price}`)
-    }
+    // if (dbPrice !== undefined && Math.abs(dbPrice - item.price) > 0.01) {
+    //   console.log(`Price difference for ${item.name}: DB=${dbPrice}, Sent=${item.price}`)
+    // }
 
     // Skip branch validation if branchId is not set on menu item
-    if (menuItem.branchId && menuItem.branchId.toString() !== branchId) {
-      console.log(`Item ${item.name} branch mismatch: DB=${menuItem.branchId}, Sent=${branchId}`)
-    }
+    // if (menuItem.branchId && menuItem.branchId.toString() !== branchId) {
+    //   console.log(`Item ${item.name} branch mismatch: DB=${menuItem.branchId}, Sent=${branchId}`)
+    // }
 
     // Add to subtotal using the price sent from frontend
     calculatedSubtotal += item.price * item.quantity
@@ -190,15 +184,15 @@ exports.createCounterOrder = asyncHandler(async (req, res) => {
   })
 
   // Save to database
-  console.log('💾 Saving counter order with category info:', {
-    categoryName: counterOrder.categoryName,
-    branchName: counterOrder.branchName,
-    categoryId: counterOrder.categoryId
-  });
+  // console.log('💾 Saving counter order with category info:', {
+  //   categoryName: counterOrder.categoryName,
+  //   branchName: counterOrder.branchName,
+  //   categoryId: counterOrder.categoryId
+  // });
   
   await counterOrder.save()
   
-  console.log('✅ Counter order saved successfully with category:', counterOrder.categoryName);
+  // console.log('✅ Counter order saved successfully with category:', counterOrder.categoryName);
 
   // Populate related data
   const populatedOrder = await CounterOrder.findById(counterOrder._id)
@@ -319,8 +313,8 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
     paymentMethod
   } = req.query
   
-  console.log('📅 Date filter params:', { startDate, endDate, date });
-  console.log('🔍 Filter params:', { search, branchId, categoryName, paymentStatus, orderStatus, paymentMethod });
+  // console.log('📅 Date filter params:', { startDate, endDate, date });
+  // console.log('🔍 Filter params:', { search, branchId, categoryName, paymentStatus, orderStatus, paymentMethod });
   
   // Build query to exclude complimentary orders from sales reports unless explicitly requested
   const query = {}
@@ -342,11 +336,11 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
       $lte: endOfDay
     };
     
-    console.log('📅 Single date filter applied:', {
-      date: date,
-      startOfDay: startOfDay,
-      endOfDay: endOfDay
-    });
+    // console.log('📅 Single date filter applied:', {
+    //   date: date,
+    //   startOfDay: startOfDay,
+    //   endOfDay: endOfDay
+    // });
   } else if (startDate || endDate) {
     // Date range filter
     query.createdAt = {};
@@ -363,11 +357,11 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
       query.createdAt.$lte = end;
     }
     
-    console.log('📅 Date range filter applied:', {
-      startDate: startDate,
-      endDate: endDate,
-      query: query.createdAt
-    });
+    // console.log('📅 Date range filter applied:', {
+    //   startDate: startDate,
+    //   endDate: endDate,
+    //   query: query.createdAt
+    // });
   }
 
   // Add search filter - search by customer name, phone number, invoice number, KOT number
@@ -389,7 +383,7 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
   // Add category filter
   if (categoryName) {
     query.categoryName = new RegExp(categoryName.trim(), 'i');
-    console.log('📂 Category filter applied:', categoryName);
+    // console.log('📂 Category filter applied:', categoryName);
   }
 
   // Add payment status filter
@@ -407,7 +401,7 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
     query.paymentMethod = paymentMethod;
   }
 
-  console.log('🔍 Final query:', query);
+  // console.log('🔍 Final query:', query);
 
   // Calculate pagination
   const pageNum = parseInt(page);
@@ -437,9 +431,9 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
 
   // Log performance
   const queryTime = Date.now() - startTime;
-  console.log(`⚡ Query executed in ${queryTime}ms - Found ${counterOrders.length} of ${totalCount} orders`);
+  // console.log(`⚡ Query executed in ${queryTime}ms - Found ${counterOrders.length} of ${totalCount} orders`);
 
-  console.log('📊 Found orders after filters:', counterOrders.length, 'of', totalCount);
+  // console.log('📊 Found orders after filters:', counterOrders.length, 'of', totalCount);
 
   if (!counterOrders || counterOrders.length === 0) {
     return res.status(200).json({
@@ -518,7 +512,7 @@ exports.getAllCounterOrders = asyncHandler(async (req, res) => {
   const hasNextPage = pageNum < totalPages;
   const hasPrevPage = pageNum > 1;
 
-  console.log('✅ Returning formatted orders:', formattedOrders.length);
+  // console.log('✅ Returning formatted orders:', formattedOrders.length);
 
   res.status(200).json({
     success: true,
@@ -973,9 +967,9 @@ exports.getCategorizedOrders = asyncHandler(async (req, res) => {
     paymentMethod
   } = req.query
   
-  console.log('📊 getCategorizedOrders called with params:', { 
-    date, startDate, endDate, categoryName, orderStatus, page, limit 
-  });
+  // console.log('📊 getCategorizedOrders called with params:', { 
+  //   date, startDate, endDate, categoryName, orderStatus, page, limit 
+  // });
   
   // Build query to exclude complimentary orders unless explicitly requested
   const query = {}
@@ -1089,7 +1083,7 @@ exports.getCategorizedOrders = asyncHandler(async (req, res) => {
     query.paymentMethod = paymentMethod;
   }
 
-  console.log('🔍 Final query:', JSON.stringify(query, null, 2));
+  // console.log('🔍 Final query:', JSON.stringify(query, null, 2));
 
   // Calculate pagination
   const pageNum = parseInt(page);
@@ -1183,7 +1177,7 @@ exports.getCategorizedOrders = asyncHandler(async (req, res) => {
 
   // Log performance
   const queryTime = Date.now() - startTime;
-  console.log(`⚡ Query executed in ${queryTime}ms - Found ${counterOrders.length} of ${totalCount} orders`);
+  // console.log(`⚡ Query executed in ${queryTime}ms - Found ${counterOrders.length} of ${totalCount} orders`);
 
   if (!counterOrders || counterOrders.length === 0) {
     return res.status(200).json({
@@ -1267,7 +1261,7 @@ exports.getCategorizedOrders = asyncHandler(async (req, res) => {
   const hasNextPage = pageNum < totalPages;
   const hasPrevPage = pageNum > 1;
 
-  console.log('✅ Returning formatted orders:', formattedOrders.length);
+  // console.log('✅ Returning formatted orders:', formattedOrders.length);
 
   res.status(200).json({
     success: true,
