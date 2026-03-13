@@ -42,6 +42,9 @@ router.get("/:id", staffOrderController.getStaffOrderById)
 // Update order status - EXISTING (works for both staff and guest orders)
 router.put("/:id/status", staffOrderController.updateStaffOrderStatus)
 
+// Update table number - NEW
+router.put("/:id/table", staffOrderController.updateOrderTableNumber)
+
 // Delete order - EXISTING (works for both staff and guest orders)
 router.delete("/:id", staffOrderController.deleteStaffOrder)
 
@@ -55,3 +58,12 @@ router.post("/:id/items", staffOrderController.addItemsToStaffOrder)
 router.get("/branch/:branchId/table/:tableId", staffOrderController.getStaffOrdersByTable)
 
 module.exports = router
+
+// Mark order as complimentary
+router.put("/:id/complimentary", staffOrderController.markOrderAsComplimentary)
+
+// Cancel order
+router.put("/:id/cancel", staffOrderController.cancelOrder)
+
+// Apply discount
+router.put("/:id/discount", staffOrderController.applyDiscount)

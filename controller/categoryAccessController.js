@@ -31,7 +31,7 @@ exports.getCategoryAccessById = async (req, res) => {
 // Create category access user
 exports.createCategoryAccess = async (req, res) => {
   try {
-    const { name, username, password, categoryId, categoryName, branchId, branchName } = req.body;
+    const { name, username, password, cancelPassword, categoryId, categoryName, branchId, branchName } = req.body;
 
     // Check if username already exists
     const existingUser = await CategoryAccess.findOne({ username: username.toLowerCase() });
@@ -43,6 +43,7 @@ exports.createCategoryAccess = async (req, res) => {
       name,
       username: username.toLowerCase(),
       password,
+      cancelPassword,
       categoryId,
       categoryName,
       branchId,
@@ -62,7 +63,7 @@ exports.createCategoryAccess = async (req, res) => {
 // Update category access user
 exports.updateCategoryAccess = async (req, res) => {
   try {
-    const { name, username, password, categoryId, categoryName, branchId, branchName, isActive } = req.body;
+    const { name, username, password, cancelPassword, categoryId, categoryName, branchId, branchName, isActive } = req.body;
     
     const user = await CategoryAccess.findById(req.params.id);
     if (!user) {
@@ -81,6 +82,7 @@ exports.updateCategoryAccess = async (req, res) => {
     if (name) user.name = name;
     if (username) user.username = username.toLowerCase();
     if (password) user.password = password; // Will be hashed by pre-save hook
+    if (cancelPassword) user.cancelPassword = cancelPassword;
     if (categoryId) user.categoryId = categoryId;
     if (categoryName) user.categoryName = categoryName;
     if (branchId !== undefined) user.branchId = branchId;

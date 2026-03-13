@@ -19,6 +19,11 @@ const categoryAccessSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [4, 'Password must be at least 4 characters'],
   },
+  cancelPassword: {
+    type: String,
+    required: [true, 'Cancel password is required'],
+    minlength: [4, 'Cancel password must be at least 4 characters'],
+  },
   categoryId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',

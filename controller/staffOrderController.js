@@ -1099,3 +1099,316 @@ exports.getGuestOrdersByMobile = async (req, res) => {
     })
   }
 }
+
+// Mark order as complimentary with reason
+exports.markOrderAsComplimentary = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("🎁🎁🎁 STAFF ORDER - MARK AS COMPLIMENTARY 🎁🎁🎁")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { id } = req.params
+    const { reason } = req.body
+
+    console.log("🎁 Complimentary - Order ID:", id)
+    console.log("🎁 Complimentary - Reason:", reason)
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Reason is required for complimentary bill",
+      })
+    }
+
+    const order = await StaffOrder.findById(id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    order.isComplimentary = true
+    order.complimentaryReason = reason.trim()
+    order.originalGrandTotal = order.grandTotal
+    order.grandTotal = 0
+    order.paymentStatus = "completed"
+    order.complimentaryMarkedAt = new Date()
+
+    await order.save()
+
+    console.log("✅ Complimentary - Order marked as complimentary")
+
+    res.status(200).json({
+      success: true,
+      message: "Order marked as complimentary",
+      order: order,
+    })
+  } catch (error) {
+    console.error("❌ Complimentary - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error marking order as complimentary",
+      error: error.message,
+    })
+  }
+}
+
+// Cancel order with reason
+exports.cancelOrder = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("❌❌❌ STAFF ORDER - CANCEL ORDER ❌❌❌")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { id } = req.params
+    const { reason, cancelledBy } = req.body
+
+    console.log("❌ Cancel - Order ID:", id)
+    console.log("❌ Cancel - Reason:", reason)
+    console.log("❌ Cancel - Cancelled By:", cancelledBy)
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Reason is required for cancelling order",
+      })
+    }
+
+    const order = await StaffOrder.findById(id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    order.status = "cancelled"
+    order.cancellationReason = reason.trim()
+    order.cancelledBy = cancelledBy ? cancelledBy.trim() : "Admin"
+    order.cancelledAt = new Date()
+    
+    // If there's a table, mark it as available
+    if (order.tableId) {
+      try {
+        const Table = require("../model/Table")
+        await Table.findByIdAndUpdate(
+          order.tableId,
+          { status: "available" },
+          { new: true }
+        )
+        console.log(`✅ Table ${order.tableNumber} status updated to available`)
+      } catch (tableError) {
+        console.error("❌ Error updating table status:", tableError)
+      }
+    }
+
+    await order.save()
+
+    console.log("✅ Cancel - Order cancelled successfully")
+
+    res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully",
+      order: order,
+    })
+  } catch (error) {
+    console.error("❌ Cancel - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error cancelling order",
+      error: error.message,
+    })
+  }
+}
+
+// Apply discount to order
+exports.applyDiscount = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("💰💰💰 STAFF ORDER - APPLY DISCOUNT 💰💰💰")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { id } = req.params
+    const { discountType, discountValue, reason } = req.body
+
+    console.log("💰 Discount - Order ID:", id)
+    console.log("💰 Discount - Type:", discountType)
+    console.log("💰 Discount - Value:", discountValue)
+
+    if (!discountType || !["percentage", "amount"].includes(discountType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount type must be 'percentage' or 'amount'",
+      })
+    }
+
+    if (!discountValue || discountValue <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount value must be greater than 0",
+      })
+    }
+
+    const order = await StaffOrder.findById(id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    if (!order.originalGrandTotal) {
+      order.originalGrandTotal = order.grandTotal
+    }
+
+    let discountAmount = 0
+    if (discountType === "percentage") {
+      if (discountValue > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Percentage discount cannot exceed 100%",
+        })
+      }
+      discountAmount = (order.originalGrandTotal * discountValue) / 100
+    } else {
+      discountAmount = discountValue
+      if (discountAmount > order.originalGrandTotal) {
+        return res.status(400).json({
+          success: false,
+          message: "Discount amount cannot exceed order total",
+        })
+      }
+    }
+
+    order.discountType = discountType
+    order.discountValue = discountValue
+    order.discountAmount = discountAmount
+    order.discountReason = reason || "Discount applied"
+    order.grandTotal = order.originalGrandTotal - discountAmount
+    order.discountAppliedAt = new Date()
+
+    await order.save()
+
+    console.log("✅ Discount - Applied successfully")
+
+    res.status(200).json({
+      success: true,
+      message: "Discount applied successfully",
+      order: order,
+      discountAmount: discountAmount,
+    })
+  } catch (error) {
+    console.error("❌ Discount - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error applying discount",
+      error: error.message,
+    })
+  }
+}
+
+
+// Update table number for an order
+exports.updateOrderTableNumber = async (req, res) => {
+  try {
+    console.log("=" .repeat(80))
+    console.log("🔄 STAFF ORDER - UPDATE TABLE NUMBER 🔄")
+    console.log("Order ID:", req.params.id)
+    console.log("New table number:", req.body.tableNumber)
+    
+    const { tableNumber } = req.body
+    
+    // Validate table number
+    if (!tableNumber || tableNumber < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid table number is required"
+      })
+    }
+    
+    // Find the order
+    const order = await StaffOrder.findById(req.params.id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      })
+    }
+    
+    // Store old table info for logging and status update
+    const oldTableNumber = order.tableNumber
+    const oldTableId = order.tableId
+    
+    // Import Table model
+    const Table = require("../model/Table")
+    
+    // Update old table status to "available" if it exists
+    if (oldTableId) {
+      try {
+        const oldTable = await Table.findById(oldTableId)
+        if (oldTable) {
+          oldTable.status = "available"
+          await oldTable.save()
+          console.log(`✅ Old table ${oldTableNumber} marked as available`)
+        }
+      } catch (error) {
+        console.log(`⚠️ Could not update old table status: ${error.message}`)
+      }
+    }
+    
+    // Find and update new table status to "reserved"
+    try {
+      // Find the new table by table number, branch, and category
+      const newTable = await Table.findOne({
+        number: tableNumber,
+        branchId: order.branchId,
+        categoryId: order.categoryId
+      })
+      
+      if (newTable) {
+        newTable.status = "reserved"
+        await newTable.save()
+        
+        // Update order with new table info
+        order.tableNumber = tableNumber
+        order.tableId = newTable._id
+        
+        console.log(`✅ New table ${tableNumber} marked as reserved`)
+      } else {
+        // If table not found in database, just update the table number
+        order.tableNumber = tableNumber
+        console.log(`⚠️ Table ${tableNumber} not found in database, only updating order table number`)
+      }
+    } catch (error) {
+      console.log(`⚠️ Could not update new table status: ${error.message}`)
+      // Still update the order table number even if table status update fails
+      order.tableNumber = tableNumber
+    }
+    
+    // Save the order
+    await order.save()
+    
+    console.log(`✅ Table number updated from ${oldTableNumber} to ${tableNumber}`)
+    console.log("=" .repeat(80))
+    
+    res.status(200).json({
+      success: true,
+      message: `Table switched from ${oldTableNumber} to ${tableNumber}`,
+      order: order
+    })
+    
+  } catch (error) {
+    console.error("❌ Error updating table number:", error)
+    console.log("=" .repeat(80))
+    res.status(500).json({
+      success: false,
+      message: "Failed to update table number",
+      error: error.message
+    })
+  }
+}

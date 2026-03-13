@@ -206,10 +206,6 @@ const createMobileGuestOrder = async (req, res) => {
   }
 }
 
-module.exports = {
-  createMobileGuestOrder,
-}
-
 // Update existing order with additional items - Creates NEW KOT for additional items but keeps same order
 const updateMobileGuestOrderItems = async (req, res) => {
   console.log("=" .repeat(80))
@@ -352,7 +348,641 @@ const updateMobileGuestOrderItems = async (req, res) => {
   }
 }
 
+// Get sales report - completed bills for a category
+const getCategorySalesReport = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("📊📊📊 SALES REPORT ENDPOINT CALLED 📊📊📊")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { branchId, categoryId, startDate, endDate } = req.query
+
+    console.log("📊 Sales Report - Query params:", {
+      branchId,
+      categoryId,
+      startDate,
+      endDate
+    })
+
+    if (!branchId || !categoryId) {
+      return res.status(400).json({
+        success: false,
+        message: "Branch ID and Category ID are required",
+      })
+    }
+
+    // Build query for completed orders with bills printed (excluding complimentary)
+    const query = {
+      branchId: branchId,
+      categoryId: categoryId,
+      billPrinted: true, // Only show orders where bill has been printed
+      status: { $in: ["completed", "served"] }, // Include both completed and served orders
+      $or: [
+        { isComplimentary: { $exists: false } }, // Orders without isComplimentary field
+        { isComplimentary: false } // Orders explicitly marked as not complimentary
+      ]
+    }
+
+    // Add date filter if provided, otherwise default to today
+    if (startDate || endDate) {
+      query.createdAt = {}
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate)
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        query.createdAt.$lte = endDateTime
+      }
+    } else {
+      // Default to today's orders if no date filter provided
+      const today = new Date()
+      const todayStart = new Date(today.setHours(0, 0, 0, 0))
+      const todayEnd = new Date(today.setHours(23, 59, 59, 999))
+      query.createdAt = {
+        $gte: todayStart,
+        $lte: todayEnd
+      }
+    }
+
+    console.log("📊 Sales Report - Query:", JSON.stringify(query, null, 2))
+
+    // Fetch completed orders
+    const completedOrders = await StaffOrder.find(query)
+      .sort({ billPrintedAt: -1 }) // Sort by bill print time, newest first
+      .populate('tableId', 'tableNumber')
+      .lean()
+
+    console.log("📊 Sales Report - Found orders:", completedOrders.length)
+
+    // Calculate totals
+    const totalSales = completedOrders.reduce((sum, order) => sum + (order.grandTotal || 0), 0)
+    const totalOrders = completedOrders.length
+    const totalDiscount = completedOrders.reduce((sum, order) => sum + (order.discountAmount || 0), 0)
+
+    // Format orders for response
+    const formattedOrders = completedOrders.map(order => ({
+      orderId: order.orderId,
+      tableNumber: order.tableNumber || order.tableId?.tableNumber || 'N/A',
+      customerName: order.customerName || 'Unknown',
+      customerMobile: order.customerMobile || 'N/A',
+      items: order.items || [],
+      grandTotal: order.grandTotal || 0,
+      originalGrandTotal: order.originalGrandTotal || order.grandTotal || 0,
+      discountAmount: order.discountAmount || 0,
+      discountType: order.discountType || null,
+      discountValue: order.discountValue || 0,
+      discountReason: order.discountReason || null,
+      billPrintedAt: order.billPrintedAt || order.updatedAt,
+      orderTime: order.orderTime || order.createdAt,
+      status: order.status
+    }))
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orders: formattedOrders,
+        summary: {
+          totalOrders,
+          totalSales,
+          totalDiscount,
+          averageOrderValue: totalOrders > 0 ? (totalSales / totalOrders).toFixed(2) : 0
+        }
+      }
+    })
+  } catch (error) {
+    console.error("❌ Sales Report - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error fetching sales report",
+      error: error.message,
+    })
+  }
+}
+
+// Complete order and mark bill as printed - for sales report
+const completeOrderAndPrintBill = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("✅✅✅ COMPLETE ORDER & PRINT BILL ENDPOINT CALLED ✅✅✅")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { id } = req.params
+
+    console.log("✅ Complete Order - Order ID:", id)
+
+    // Find the order
+    const order = await StaffOrder.findById(id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    console.log("✅ Complete Order - Current status:", order.status)
+    console.log("✅ Complete Order - Current billPrinted:", order.billPrinted)
+
+    // Update order status to completed and mark bill as printed
+    order.status = "completed"
+    order.billPrinted = true
+    order.billPrintedAt = new Date()
+    
+    // If there's a table, mark it as available
+    if (order.tableId) {
+      try {
+        await Table.findByIdAndUpdate(
+          order.tableId,
+          { status: "available" },
+          { new: true }
+        )
+        console.log(`✅ Table ${order.tableNumber} status updated to available`)
+      } catch (tableError) {
+        console.error("❌ Error updating table status:", tableError)
+        // Continue even if table update fails
+      }
+    }
+
+    await order.save()
+
+    console.log("✅ Complete Order - Order marked as completed and bill printed")
+    console.log("✅ Complete Order - New status:", order.status)
+    console.log("✅ Complete Order - Bill printed at:", order.billPrintedAt)
+
+    res.status(200).json({
+      success: true,
+      message: "Order completed and bill marked as printed",
+      order: order,
+    })
+  } catch (error) {
+    console.error("❌ Complete Order - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error completing order",
+      error: error.message,
+    })
+  }
+}
+
+// Mark order as complimentary with reason
+const markOrderAsComplimentary = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("🎁🎁🎁 MARK ORDER AS COMPLIMENTARY ENDPOINT CALLED 🎁🎁🎁")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { id } = req.params
+    const { reason } = req.body
+
+    console.log("🎁 Complimentary - Order ID:", id)
+    console.log("🎁 Complimentary - Reason:", reason)
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Reason is required for complimentary bill",
+      })
+    }
+
+    // Find the order
+    const order = await StaffOrder.findById(id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    console.log("🎁 Complimentary - Current status:", order.status)
+
+    // Mark order as complimentary
+    order.isComplimentary = true
+    order.complimentaryReason = reason.trim()
+    order.originalGrandTotal = order.grandTotal
+    order.grandTotal = 0
+    order.paymentStatus = "completed"
+    order.complimentaryMarkedAt = new Date()
+
+    await order.save()
+
+    console.log("✅ Complimentary - Order marked as complimentary")
+
+    res.status(200).json({
+      success: true,
+      message: "Order marked as complimentary",
+      order: order,
+    })
+  } catch (error) {
+    console.error("❌ Complimentary - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error marking order as complimentary",
+      error: error.message,
+    })
+  }
+}
+
+// Cancel order with reason
+const cancelOrder = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("❌❌❌ CANCEL ORDER ENDPOINT CALLED ❌❌❌")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { id } = req.params
+    const { reason, cancelledBy } = req.body
+
+    console.log("❌ Cancel - Order ID:", id)
+    console.log("❌ Cancel - Reason:", reason)
+    console.log("❌ Cancel - Cancelled By:", cancelledBy)
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Reason is required for cancelling order",
+      })
+    }
+
+    // Find the order
+    const order = await StaffOrder.findById(id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    console.log("❌ Cancel - Current status:", order.status)
+
+    // Cancel the order
+    order.status = "cancelled"
+    order.cancellationReason = reason.trim()
+    order.cancelledBy = cancelledBy ? cancelledBy.trim() : "Admin"
+    order.cancelledAt = new Date()
+    
+    // If there's a table, mark it as available
+    if (order.tableId) {
+      try {
+        await Table.findByIdAndUpdate(
+          order.tableId,
+          { status: "available" },
+          { new: true }
+        )
+        console.log(`✅ Table ${order.tableNumber} status updated to available`)
+      } catch (tableError) {
+        console.error("❌ Error updating table status:", tableError)
+      }
+    }
+
+    await order.save()
+
+    console.log("✅ Cancel - Order cancelled successfully")
+
+    res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully",
+      order: order,
+    })
+  } catch (error) {
+    console.error("❌ Cancel - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error cancelling order",
+      error: error.message,
+    })
+  }
+}
+
+// Apply discount to order
+const applyDiscount = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("💰💰💰 APPLY DISCOUNT ENDPOINT CALLED 💰💰💰")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { id } = req.params
+    const { discountType, discountValue, reason } = req.body
+
+    console.log("💰 Discount - Order ID:", id)
+    console.log("💰 Discount - Type:", discountType)
+    console.log("💰 Discount - Value:", discountValue)
+    console.log("💰 Discount - Reason:", reason)
+
+    // Validate inputs
+    if (!discountType || !["percentage", "amount"].includes(discountType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount type must be 'percentage' or 'amount'",
+      })
+    }
+
+    if (!discountValue || discountValue <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount value must be greater than 0",
+      })
+    }
+
+    // Find the order
+    const order = await StaffOrder.findById(id)
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      })
+    }
+
+    console.log("💰 Discount - Current grand total:", order.grandTotal)
+
+    // Store original total if not already stored
+    if (!order.originalGrandTotal) {
+      order.originalGrandTotal = order.grandTotal
+    }
+
+    // Calculate discount
+    let discountAmount = 0
+    if (discountType === "percentage") {
+      if (discountValue > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Percentage discount cannot exceed 100%",
+        })
+      }
+      discountAmount = (order.originalGrandTotal * discountValue) / 100
+    } else {
+      discountAmount = discountValue
+      if (discountAmount > order.originalGrandTotal) {
+        return res.status(400).json({
+          success: false,
+          message: "Discount amount cannot exceed order total",
+        })
+      }
+    }
+
+    // Apply discount
+    order.discountType = discountType
+    order.discountValue = discountValue
+    order.discountAmount = discountAmount
+    order.discountReason = reason || "Discount applied"
+    order.grandTotal = order.originalGrandTotal - discountAmount
+    order.discountAppliedAt = new Date()
+
+    await order.save()
+
+    console.log("✅ Discount - Applied successfully")
+    console.log("💰 Discount - New grand total:", order.grandTotal)
+
+    res.status(200).json({
+      success: true,
+      message: "Discount applied successfully",
+      order: order,
+      discountAmount: discountAmount,
+    })
+  } catch (error) {
+    console.error("❌ Discount - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error applying discount",
+      error: error.message,
+    })
+  }
+}
+
 module.exports = {
   createMobileGuestOrder,
   updateMobileGuestOrderItems,
+  getCategorySalesReport,
+  completeOrderAndPrintBill,
+  markOrderAsComplimentary,
+  cancelOrder,
+  applyDiscount,
+}
+
+// Get all orders for category staff (with default today filter)
+const getCategoryOrders = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("📋📋📋 GET CATEGORY ORDERS ENDPOINT CALLED 📋📋📋")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { branchId, categoryId, status, startDate, endDate, page = 1, limit = 50 } = req.query
+
+    console.log("📋 Category Orders - Query params:", {
+      branchId,
+      categoryId,
+      status,
+      startDate,
+      endDate,
+      page,
+      limit
+    })
+
+    if (!branchId || !categoryId) {
+      return res.status(400).json({
+        success: false,
+        message: "Branch ID and Category ID are required",
+      })
+    }
+
+    // Build query
+    const query = {
+      branchId: branchId,
+      categoryId: categoryId,
+    }
+
+    // Add status filter if provided
+    if (status) {
+      query.status = status
+    }
+
+    // Add date filter - Default to today if no dates provided
+    if (startDate || endDate) {
+      query.createdAt = {}
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate)
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        query.createdAt.$lte = endDateTime
+      }
+    } else {
+      // Default to today's orders
+      const today = new Date()
+      const todayStart = new Date(today.setHours(0, 0, 0, 0))
+      const todayEnd = new Date(today.setHours(23, 59, 59, 999))
+      query.createdAt = {
+        $gte: todayStart,
+        $lte: todayEnd
+      }
+    }
+
+    console.log("📋 Category Orders - Query:", JSON.stringify(query, null, 2))
+
+    // Calculate pagination
+    const pageNum = parseInt(page)
+    const limitNum = parseInt(limit)
+    const skip = (pageNum - 1) * limitNum
+
+    // Get total count
+    const totalCount = await StaffOrder.countDocuments(query)
+
+    // Fetch orders
+    const orders = await StaffOrder.find(query)
+      .populate("branchId", "name address")
+      .populate("tableId", "tableNumber")
+      .populate("userId", "name mobile")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean()
+
+    console.log("📋 Category Orders - Found:", orders.length)
+
+    res.status(200).json({
+      success: true,
+      orders: orders,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limitNum),
+      currentPage: pageNum,
+    })
+  } catch (error) {
+    console.error("❌ Category Orders - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error fetching category orders",
+      error: error.message,
+    })
+  }
+}
+
+// Get cancelled orders for category (with default today filter)
+const getCategoryCancelledOrders = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("❌❌❌ GET CANCELLED ORDERS ENDPOINT CALLED ❌❌❌")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { branchId, categoryId, startDate, endDate } = req.query
+
+    if (!branchId || !categoryId) {
+      return res.status(400).json({
+        success: false,
+        message: "Branch ID and Category ID are required",
+      })
+    }
+
+    const query = {
+      branchId: branchId,
+      categoryId: categoryId,
+      status: "cancelled"
+    }
+
+    // Add date filter - Default to today
+    if (startDate || endDate) {
+      query.createdAt = {}
+      if (startDate) query.createdAt.$gte = new Date(startDate)
+      if (endDate) {
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        query.createdAt.$lte = endDateTime
+      }
+    } else {
+      const today = new Date()
+      const todayStart = new Date(today.setHours(0, 0, 0, 0))
+      const todayEnd = new Date(today.setHours(23, 59, 59, 999))
+      query.createdAt = { $gte: todayStart, $lte: todayEnd }
+    }
+
+    const orders = await StaffOrder.find(query)
+      .populate("tableId", "tableNumber")
+      .sort({ cancelledAt: -1 })
+      .lean()
+
+    res.status(200).json({
+      success: true,
+      orders: orders,
+    })
+  } catch (error) {
+    console.error("❌ Cancelled Orders - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error fetching cancelled orders",
+      error: error.message,
+    })
+  }
+}
+
+// Get complimentary orders for category (with default today filter)
+const getCategoryComplimentaryOrders = async (req, res) => {
+  console.log("=" .repeat(80))
+  console.log("🎁🎁🎁 GET COMPLIMENTARY ORDERS ENDPOINT CALLED 🎁🎁🎁")
+  console.log("=" .repeat(80))
+  
+  try {
+    const { branchId, categoryId, startDate, endDate } = req.query
+
+    if (!branchId || !categoryId) {
+      return res.status(400).json({
+        success: false,
+        message: "Branch ID and Category ID are required",
+      })
+    }
+
+    const query = {
+      branchId: branchId,
+      categoryId: categoryId,
+      isComplimentary: true
+    }
+
+    // Add date filter - Default to today
+    if (startDate || endDate) {
+      query.createdAt = {}
+      if (startDate) query.createdAt.$gte = new Date(startDate)
+      if (endDate) {
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        query.createdAt.$lte = endDateTime
+      }
+    } else {
+      const today = new Date()
+      const todayStart = new Date(today.setHours(0, 0, 0, 0))
+      const todayEnd = new Date(today.setHours(23, 59, 59, 999))
+      query.createdAt = { $gte: todayStart, $lte: todayEnd }
+    }
+
+    const orders = await StaffOrder.find(query)
+      .populate("tableId", "tableNumber")
+      .sort({ complimentaryMarkedAt: -1 })
+      .lean()
+
+    res.status(200).json({
+      success: true,
+      orders: orders,
+    })
+  } catch (error) {
+    console.error("❌ Complimentary Orders - Error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error fetching complimentary orders",
+      error: error.message,
+    })
+  }
+}
+
+module.exports = {
+  createMobileGuestOrder,
+  updateMobileGuestOrderItems,
+  getCategorySalesReport,
+  completeOrderAndPrintBill,
+  markOrderAsComplimentary,
+  cancelOrder,
+  applyDiscount,
+  getCategoryOrders,
+  getCategoryCancelledOrders,
+  getCategoryComplimentaryOrders,
 }

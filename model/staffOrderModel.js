@@ -165,6 +165,58 @@ const staffOrderSchema = new mongoose.Schema(
       type: Date,
       required: false, // When the bill was printed
     },
+    // Complimentary bill fields
+    isComplimentary: {
+      type: Boolean,
+      default: false,
+    },
+    complimentaryReason: {
+      type: String,
+      required: false,
+    },
+    complimentaryMarkedAt: {
+      type: Date,
+      required: false,
+    },
+    // Discount fields
+    originalGrandTotal: {
+      type: Number,
+      required: false, // Store original total before discount
+    },
+    discountType: {
+      type: String,
+      enum: ["percentage", "amount"],
+      required: false,
+    },
+    discountValue: {
+      type: Number,
+      required: false,
+    },
+    discountAmount: {
+      type: Number,
+      required: false,
+    },
+    discountReason: {
+      type: String,
+      required: false,
+    },
+    discountAppliedAt: {
+      type: Date,
+      required: false,
+    },
+    // Cancellation fields
+    cancellationReason: {
+      type: String,
+      required: false,
+    },
+    cancelledBy: {
+      type: String,
+      required: false,
+    },
+    cancelledAt: {
+      type: Date,
+      required: false,
+    },
     orderTime: {
       type: Date,
       required: true,
