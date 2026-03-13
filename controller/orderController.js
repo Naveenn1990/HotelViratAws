@@ -6,6 +6,26 @@ const Branch = require("../model/Branch")
 const Menu = require("../model/menuModel")
 const { validateStock, updateStockAfterOrder } = require("../middleware/stockMiddleware")
 
+// Generate order number with daily reset (format: 001, 002, 003...)
+const generateOrderNumber = async () => {
+  const today = new Date()
+  
+  // Find orders created today
+  const startOfDay = new Date(today)
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date(today)
+  endOfDay.setHours(23, 59, 59, 999)
+  
+  const todayOrderCount = await Order.countDocuments({
+    createdAt: { $gte: startOfDay, $lte: endOfDay }
+  })
+  
+  // Generate next order number (001, 002, 003, etc.)
+  const sequenceNumber = String(todayOrderCount + 1).padStart(3, '0')
+  
+  return sequenceNumber
+}
+
 // Create a new order
 exports.createOrder = async (req, res, next) => {
   console.log('🚀 ORDER CONTROLLER: createOrder called');
@@ -20,7 +40,6 @@ exports.createOrder = async (req, res, next) => {
       subtotal,
       discount,
       couponCode,
-      deliveryFee,
       tax,
       total,
       deliveryOption,
@@ -78,15 +97,19 @@ exports.createOrder = async (req, res, next) => {
       },
     ]
 
+    // Generate order number with daily reset
+    const orderNumber = await generateOrderNumber()
+    console.log(`Generated order number: ${orderNumber}`)
+
     // Create the order with enriched items (including categoryId)
     const order = new Order({
+      orderNumber,
       userId,
       branchId,
       items: enrichedItems,
       subtotal,
       discount: discount || 0,
       couponCode,
-      deliveryFee: deliveryFee || 0,
       tax: tax || 0,
       total,
       deliveryOption: deliveryOption || "delivery",
@@ -151,14 +174,59 @@ exports.createOrder = async (req, res, next) => {
 exports.getUserOrders = async (req, res) => {
   try {
     const { userId } = req.params
+    const { 
+      startDate, 
+      endDate, 
+      page = 1, 
+      limit = 20,
+      status 
+    } = req.query
 
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" })
     }
 
-    const orders = await Order.find({ userId }).populate("branchId", "name address").sort({ createdAt: -1 })
+    // Build query filter
+    const query = { userId: userId }
+    
+    // Add date range filter
+    if (startDate || endDate) {
+      query.createdAt = {}
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate)
+      }
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        query.createdAt.$lte = end
+      }
+    }
+    
+    // Add status filter
+    if (status && status !== 'all') {
+      query.status = status
+    }
 
-    res.status(200).json(orders)
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+    
+    const orders = await Order.find(query)
+      .populate("branchId", "name address")
+      .populate("userId", "name mobile")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+    
+    const total = await Order.countDocuments(query)
+    
+    res.status(200).json({
+      orders,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    })
   } catch (error) {
     res.status(500).json({ message: "Error fetching orders", error: error.message })
   }
@@ -425,6 +493,10 @@ exports.getAllOrders = async (req, res) => {
       search = "", // Add search parameter
     } = req.query
 
+    console.log('🔍 getAllOrders called with params:', {
+      page, limit, status, fromDate, toDate, search
+    })
+
     // Build the query object
     const query = {}
 
@@ -455,11 +527,28 @@ exports.getAllOrders = async (req, res) => {
     if (fromDate || toDate) {
       query.createdAt = {}
       if (fromDate) {
-        query.createdAt.$gte = new Date(fromDate)
+        // Start of the selected day in local time
+        const start = new Date(fromDate)
+        start.setHours(0, 0, 0, 0)
+        query.createdAt.$gte = start
+        console.log('📅 Date filter - fromDate: ' + fromDate + ', start datetime: ' + start.toISOString())
       }
       if (toDate) {
-        query.createdAt.$lte = new Date(toDate)
+        // End of the selected day - use next day at 00:00:00 for $lt
+        const end = new Date(toDate)
+        end.setDate(end.getDate() + 1)
+        end.setHours(0, 0, 0, 0)
+        query.createdAt.$lt = end
+        console.log('📅 Date filter - toDate: ' + toDate + ', end datetime: ' + end.toISOString())
+      } else if (fromDate) {
+        // Single date filter - use end of that day
+        const end = new Date(fromDate)
+        end.setDate(end.getDate() + 1)
+        end.setHours(0, 0, 0, 0)
+        query.createdAt.$lt = end
+        console.log('📅 Single date filter - end datetime: ' + end.toISOString())
       }
+      console.log('📅 Final date query: ' + JSON.stringify(query.createdAt, null, 2))
     }
 
     // Add search functionality
@@ -483,8 +572,11 @@ exports.getAllOrders = async (req, res) => {
       .limit(Number.parseInt(limit))
       .skip((Number.parseInt(page) - 1) * Number.parseInt(limit))
 
+    console.log(`📅 Query executed - found ${orders.length} orders for query:`, JSON.stringify(query, null, 2))
+
     // Get total count for pagination info
     const total = await Order.countDocuments(query)
+    console.log(`📅 Total count: ${total}`)
 
     res.status(200).json({
       success: true,

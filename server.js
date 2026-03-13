@@ -23,15 +23,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 })); // Vite dev aur production
-// Define the rate limiter
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 500 : 50000, // Much higher limit for development
-  message: "Too many requests from this IP, please try again after 15 minutes",
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
-app.use(limiter);
+
 // Use morgan for logging - DISABLED to reduce log noise
 // app.use(morgan("dev"));
 // app.use(
@@ -106,6 +98,7 @@ mongoose.connection.on('reconnected', () => {
 // Use Routes
 const userRoutes = require("./routes/userRoutes");
 const branchRoutes = require("./routes/branchRoutes");
+const restaurantBranchRoutes = require("./routes/restaurantBranchRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const subcategoryRoutes = require("./routes/subcategoryRoutes");
 const menuRoutes = require("./routes/menuRoutes");
@@ -192,6 +185,7 @@ const publicRestaurantOrderRoutes = require("./routes/publicRestaurantOrderRoute
 // hotel Routes
 app.use("/api/v1/hotel/user-auth", userRoutes);
 app.use("/api/v1/hotel/branch", branchRoutes);
+app.use("/api/v1/hotel/restaurant-branches", restaurantBranchRoutes);
 app.use("/api/v1/hotel", restaurantProfileRoutes); // Adapter routes for restaurant compatibility
 app.use("/api/v1/hotel/category", categoryRoutes);
 app.use("/api/v1/hotel/subcategory", subcategoryRoutes);
