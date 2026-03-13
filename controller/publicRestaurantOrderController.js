@@ -1,25 +1,26 @@
 const PublicRestaurantOrder = require('../model/publicRestaurantOrderModel');
 
-// Generate unique order ID in format: DDMMYYYY-PUB-sequence
+// Generate unique order ID (3-digit sequence, resets daily)
 const generateOrderId = async () => {
   const today = new Date();
-  const day = String(today.getDate()).padStart(2, '0');
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const year = today.getFullYear();
-  const datePrefix = `${day}${month}${year}-PUB-`;
+  const todayStr = today.toDateString(); // Get today's date as string for comparison
 
-  // Find the last order for today
+  // Find the last order created today
   const lastOrder = await PublicRestaurantOrder.findOne({
-    orderId: new RegExp(`^${datePrefix}`)
-  }).sort({ orderId: -1 });
+    createdAt: {
+      $gte: new Date(today.setHours(0, 0, 0, 0)),
+      $lt: new Date(today.setHours(23, 59, 59, 999))
+    }
+  }).sort({ createdAt: -1 });
 
   let sequence = 1;
   if (lastOrder) {
-    const lastSequence = parseInt(lastOrder.orderId.split('-')[2]);
+    // Extract sequence number from last order
+    const lastSequence = parseInt(lastOrder.orderId);
     sequence = lastSequence + 1;
   }
 
-  return `${datePrefix}${String(sequence).padStart(4, '0')}`;
+  return String(sequence).padStart(3, '0');
 };
 
 // Create new public restaurant order
@@ -130,7 +131,7 @@ exports.createPublicOrder = async (req, res) => {
 // Get all public orders (for admin/staff)
 exports.getAllPublicOrders = async (req, res) => {
   try {
-    const { branchId, startDate, endDate, status, paymentMethod, search } = req.query;
+    const { branchId, startDate, endDate, singleDate, status, paymentMethod, search, page = 1, limit = 10 } = req.query;
 
     let query = {};
 
@@ -146,7 +147,18 @@ exports.getAllPublicOrders = async (req, res) => {
       query.paymentMethod = paymentMethod;
     }
 
-    if (startDate || endDate) {
+    // Date filter - single date takes precedence over date range
+    if (singleDate) {
+      const startOfDay = new Date(singleDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(singleDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      query.orderTime = {
+        $gte: startOfDay,
+        $lte: endOfDay
+      };
+    } else if (startDate || endDate) {
       query.orderTime = {};
       if (startDate) {
         query.orderTime.$gte = new Date(startDate);
@@ -168,14 +180,40 @@ exports.getAllPublicOrders = async (req, res) => {
       ];
     }
 
+    // Get total count for pagination
+    let totalCount = 0;
+    try {
+      totalCount = await PublicRestaurantOrder.countDocuments(query);
+    } catch (countError) {
+      console.error('Error counting documents:', countError);
+      // Fallback: count manually if countDocuments fails
+      totalCount = await PublicRestaurantOrder.find(query).countDocuments();
+    }
+    
+    // Calculate pagination
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+    
     // Don't populate, just return the data as-is since we store branchName directly
-    const orders = await PublicRestaurantOrder.find(query)
-      .sort({ orderTime: -1 })
-      .lean();
+    let orders = [];
+    try {
+      orders = await PublicRestaurantOrder.find(query)
+        .sort({ orderTime: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean();
+    } catch (findError) {
+      console.error('Error finding orders:', findError);
+      orders = [];
+    }
 
     return res.status(200).json({
       success: true,
       count: orders.length,
+      total: totalCount,
+      page: pageNum,
+      totalPages: Math.ceil(totalCount / limitNum),
       data: orders
     });
 

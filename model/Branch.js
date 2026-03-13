@@ -50,6 +50,13 @@ const branchSchema = new mongoose.Schema({
     required: false,
     trim: true,
   },
+  category: {
+    type: String,
+    required: false,
+    trim: true,
+    enum: ['restaurant', 'hotel', 'both', null],
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now,
